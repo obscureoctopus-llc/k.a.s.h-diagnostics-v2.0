@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1"/>
-<title>K.A.S.H. Diagnostics v2.0 — Universal</title>
+<title>K.A.S.H. Diagnostics v2.1 — Universal</title>
 <style>
 /* ================================================================
    K.A.S.H. UNIVERSAL DIAGNOSTICS v2.0
@@ -1037,8 +1037,71 @@ let activeType = 'car';
 let liveRunning = false;
 let liveInterval = null;
 
+let scannedDTCs = [];
+let currentDTCFilter = 'all';
+let activeVehicle = null;
+let activeType = 'car';
+let liveRunning = false;
+let liveWS = null;
+let hwConnected = false;
+let connectionInfo = {};
+
+// ── API HELPERS ────────────────────────────────────────────────────
+const API = {
+  async get(path) {
+    try {
+      const r = await fetch(path);
+      return await r.json();
+    } catch (e) {
+      console.error('API GET error:', path, e);
+      return { success: false, error: e.message };
+    }
+  },
+  async post(path, body = {}) {
+    try {
+      const r = await fetch(path, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      return await r.json();
+    } catch (e) {
+      console.error('API POST error:', path, e);
+      return { success: false, error: e.message };
+    }
+  },
+};
+
+function updateConnectionUI(connected, info = {}) {
+  hwConnected = connected;
+  connectionInfo = info;
+  const dot = document.querySelector('.pd');
+  const pill = document.querySelector('.tb-pill');
+  if (dot) {
+    dot.className = connected ? 'pd pdlive' : 'pd';
+    dot.style.background = connected ? 'var(--gr)' : 'var(--rd)';
+  }
+  if (pill) {
+    const label = pill.querySelector('span:last-child') || pill;
+    if (connected) {
+      label.textContent = info.protocol || 'Connected';
+    } else {
+      label.textContent = 'No Adapter';
+    }
+  }
+  const tbProto = document.getElementById('tb-protocol');
+  const sbProto = document.getElementById('sb-proto-info');
+  if (tbProto) {
+    tbProto.textContent = connected ? (info.protocol || 'Connected') : 'Disconnected';
+  }
+  if (sbProto) {
+    sbProto.textContent = connected ? (info.protocol || 'Connected') : 'No adapter connected';
+    sbProto.style.color = connected ? 'var(--gr)' : 'var(--rd)';
+  }
+}
+
 // ── INIT ───────────────────────────────────────────────────────────
-function init() {
+async function init() {
   buildYearSelector();
   buildDTCList();
   buildSymptoms();
@@ -1049,11 +1112,22 @@ function init() {
   buildWiring();
   buildTSBs();
   buildMaintenance();
+
+  // Check backend status
+  const status = await API.get('/api/status');
+  if (status.connected) {
+    updateConnectionUI(true, {
+      vehicle_type: status.vehicle_type,
+      protocol: status.protocol,
+    });
+  } else {
+    updateConnectionUI(false);
+  }
 }
 
 // ── VEHICLE TYPE SWITCHER ──────────────────────────────────────────
 function setType(el) {
-  document.querySelectorAll('.vt-btn').forEach(b=>b.classList.remove('on'));
+  document.querySelectorAll('.vt-btn').forEach(b => b.classList.remove('on'));
   el.classList.add('on');
   activeType = el.dataset.type;
   buildYearSelector();
@@ -1095,32 +1169,51 @@ function confirmVehicle() {
   const year = document.getElementById('sel-year').value;
   const make = document.getElementById('sel-make').value;
   const model = document.getElementById('sel-model').value;
-  if (!year || !make || !model) { toast('Select year, make, and model','err'); return; }
+  if (!year || !make || !model) { toast('Select year, make, and model', 'error'); return; }
   activeVehicle = { year, make, model, type: activeType };
   const label = `${year} ${make} ${model}`;
   document.getElementById('current-veh').textContent = label;
   document.getElementById('current-veh').style.display = '';
   document.getElementById('tb-vehicle').textContent = label;
-  toast(`Vehicle set: ${label}`, 'ok');
-  // Simulate protocol detection
-  const protoMap = {car:'CAN 500k',truck:'J1939',moto:'K-Line KDS',atv:'CAN',marine:'NMEA 2000',ag:'ISOBUS/J1939',const:'J1939/CAT ET',snow:'BRP BUDS',golf:'Controller Serial',fork:'CAN',lawn:'CAN/Flash',ev:'CAN 500k',rv:'CAN/J1939',trailer:'J1939 ABS'};
-  document.getElementById('tb-protocol').textContent = protoMap[activeType] || 'CAN';
-  document.getElementById('sb-proto-info').textContent = protoMap[activeType] || 'CAN';
-  document.getElementById('sb-proto-info').style.color = 'var(--gr)';
+  toast(`Vehicle set: ${label}`, 'success');
+
+  // Protocol display based on vehicle type (reference only — real protocol comes from hardware)
+  const protoMap = {
+    car: 'CAN 500k', truck: 'J1939', moto: 'K-Line KDS', atv: 'CAN',
+    marine: 'NMEA 2000', ag: 'ISOBUS/J1939', const: 'J1939/CAT ET',
+    snow: 'BRP BUDS', golf: 'Controller Serial', fork: 'CAN',
+    lawn: 'CAN/Flash', ev: 'CAN 500k', rv: 'CAN/J1939', trailer: 'J1939 ABS',
+  };
+  if (!hwConnected) {
+    document.getElementById('tb-protocol').textContent = protoMap[activeType] || 'CAN';
+    document.getElementById('sb-proto-info').textContent = 'Vehicle selected — connect hardware to diagnose';
+    document.getElementById('sb-proto-info').style.color = 'var(--am)';
+  }
 }
 
-function autoDetect() {
-  toast('Auto-detecting vehicle via OBD-II / CAN...','ok');
-  setTimeout(() => {
-    toast('Auto-detect: Connect K.A.S.H. hardware to vehicle diagnostic port','');
-  }, 1500);
+async function autoDetect() {
+  toast('Auto-detecting vehicle via OBD-II / CAN...', 'success');
+
+  const result = await API.post('/api/connect');
+
+  if (result.success) {
+    updateConnectionUI(true, {
+      vehicle_type: result.vehicle_type,
+      protocol: result.protocol,
+    });
+    toast(`Connected: ${result.vehicle_type} via ${result.protocol}` +
+          (result.port ? ` on ${result.port}` : ''), 'success');
+  } else {
+    updateConnectionUI(false);
+    toast(result.error || 'No vehicle detected. Check adapter and ignition.', 'error');
+  }
 }
 
 // ── NAV SWITCH ─────────────────────────────────────────────────────
 function sw(id, btn) {
   document.querySelectorAll('.vw').forEach(v => v.classList.remove('on'));
   document.querySelectorAll('.nb').forEach(b => b.classList.remove('on'));
-  document.getElementById('vw-'+id).classList.add('on');
+  document.getElementById('vw-' + id).classList.add('on');
   if (btn) btn.classList.add('on');
 }
 
@@ -1128,7 +1221,7 @@ function sw(id, btn) {
 function buildDTCList() {
   const grid = document.getElementById('dtc-grid');
   grid.innerHTML = '';
-  DTCS.forEach((d,i) => {
+  DTCS.forEach((d, i) => {
     const card = document.createElement('div');
     card.className = `dtc-card sev-${d.sev}`;
     card.dataset.idx = i;
@@ -1143,11 +1236,10 @@ function buildDTCList() {
 }
 
 function showDTCDetail(idx) {
-  const d = DTCS[idx];
+  const d = (scannedDTCs.length > 0 && idx < scannedDTCs.length) ? scannedDTCs[idx] : DTCS[idx];
   const panel = document.getElementById('dtc-detail');
   panel.classList.add('on');
 
-  // Generate causes & steps based on system
   const causes = getCauses(d);
   const steps = getDiagSteps(d);
 
@@ -1155,7 +1247,7 @@ function showDTCDetail(idx) {
     <div class="dd-code">${d.code}</div>
     <div class="dd-desc">${d.desc}</div>
     <div style="margin-top:6px"><span class="dtc-sys">${d.sys}</span>
-    <span class="dtc-status ${d.sev==='high'?'dtc-active':d.sev==='medium'?'dtc-pending':'dtc-history'}">${d.sev.toUpperCase()}</span></div>
+    <span class="dtc-status ${d.sev === 'high' ? 'dtc-active' : d.sev === 'medium' ? 'dtc-pending' : 'dtc-history'}">${d.sev.toUpperCase()}</span></div>
 
     <div class="dd-section">
       <div class="dd-section-title">Probable Causes</div>
@@ -1164,22 +1256,22 @@ function showDTCDetail(idx) {
 
     <div class="dd-section">
       <div class="dd-section-title">Diagnostic Steps</div>
-      ${steps.map((s,i) => `<div class="dd-step"><div class="dd-step-num">${i+1}</div><div class="dd-step-text">${s}</div></div>`).join('')}
+      ${steps.map((s, i) => `<div class="dd-step"><div class="dd-step-num">${i + 1}</div><div class="dd-step-text">${s}</div></div>`).join('')}
     </div>
   `;
 }
 
 function getCauses(d) {
   const m = {
-    'O2 Sensor':[{text:'Faulty O2 sensor',prob:'high'},{text:'Exhaust leak before sensor',prob:'med'},{text:'Wiring damage / corrosion',prob:'med'},{text:'PCM failure (rare)',prob:'low'}],
-    'Fuel':[{text:'Vacuum leak (intake gasket, hose)',prob:'high'},{text:'Faulty fuel injector',prob:'med'},{text:'Weak fuel pump / clogged filter',prob:'med'},{text:'MAF sensor dirty/failed',prob:'med'}],
-    'Ignition':[{text:'Faulty ignition coil',prob:'high'},{text:'Worn/fouled spark plug',prob:'high'},{text:'Damaged plug wire / boot',prob:'med'},{text:'Low compression (valve/ring)',prob:'low'}],
-    'Catalytic Converter':[{text:'Worn catalyst (high mileage)',prob:'high'},{text:'Downstream O2 sensor failure',prob:'med'},{text:'Engine misfire damaging catalyst',prob:'med'},{text:'Oil consumption fouling catalyst',prob:'low'}],
-    'Throttle':[{text:'Faulty throttle position sensor',prob:'high'},{text:'Dirty throttle body',prob:'high'},{text:'Wiring harness damage',prob:'med'},{text:'PCM / throttle actuator failure',prob:'low'}],
-    'Transmission':[{text:'Low/dirty transmission fluid',prob:'high'},{text:'Faulty solenoid pack',prob:'med'},{text:'Damaged wiring harness',prob:'med'},{text:'Internal mechanical failure',prob:'low'}],
-    'ABS':[{text:'Faulty wheel speed sensor',prob:'high'},{text:'Damaged tone ring / bearing',prob:'med'},{text:'Wiring damage at wheel',prob:'med'},{text:'ABS module failure',prob:'low'}],
-    'Network':[{text:'CAN bus wiring open/short',prob:'high'},{text:'Faulty module not responding',prob:'med'},{text:'Corroded connector',prob:'med'},{text:'Termination resistor missing',prob:'low'}],
-    'EV/Hybrid':[{text:'HV battery cell imbalance',prob:'high'},{text:'Cooling system failure',prob:'med'},{text:'Inverter fault',prob:'med'},{text:'HV cable insulation damage',prob:'low'}],
+    'O2 Sensor': [{text:'Faulty O2 sensor',prob:'high'},{text:'Exhaust leak before sensor',prob:'med'},{text:'Wiring damage / corrosion',prob:'med'},{text:'PCM failure (rare)',prob:'low'}],
+    'Fuel': [{text:'Vacuum leak (intake gasket, hose)',prob:'high'},{text:'Faulty fuel injector',prob:'med'},{text:'Weak fuel pump / clogged filter',prob:'med'},{text:'MAF sensor dirty/failed',prob:'med'}],
+    'Ignition': [{text:'Faulty ignition coil',prob:'high'},{text:'Worn/fouled spark plug',prob:'high'},{text:'Damaged plug wire / boot',prob:'med'},{text:'Low compression (valve/ring)',prob:'low'}],
+    'Catalytic Converter': [{text:'Worn catalyst (high mileage)',prob:'high'},{text:'Downstream O2 sensor failure',prob:'med'},{text:'Engine misfire damaging catalyst',prob:'med'},{text:'Oil consumption fouling catalyst',prob:'low'}],
+    'Throttle': [{text:'Faulty throttle position sensor',prob:'high'},{text:'Dirty throttle body',prob:'high'},{text:'Wiring harness damage',prob:'med'},{text:'PCM / throttle actuator failure',prob:'low'}],
+    'Transmission': [{text:'Low/dirty transmission fluid',prob:'high'},{text:'Faulty solenoid pack',prob:'med'},{text:'Damaged wiring harness',prob:'med'},{text:'Internal mechanical failure',prob:'low'}],
+    'ABS': [{text:'Faulty wheel speed sensor',prob:'high'},{text:'Damaged tone ring / bearing',prob:'med'},{text:'Wiring damage at wheel',prob:'med'},{text:'ABS module failure',prob:'low'}],
+    'Network': [{text:'CAN bus wiring open/short',prob:'high'},{text:'Faulty module not responding',prob:'med'},{text:'Corroded connector',prob:'med'},{text:'Termination resistor missing',prob:'low'}],
+    'EV/Hybrid': [{text:'HV battery cell imbalance',prob:'high'},{text:'Cooling system failure',prob:'med'},{text:'Inverter fault',prob:'med'},{text:'HV cable insulation damage',prob:'low'}],
   };
   return m[d.sys] || [{text:'Sensor failure',prob:'high'},{text:'Wiring / connector issue',prob:'med'},{text:'Module failure',prob:'low'}];
 }
@@ -1193,14 +1285,14 @@ function getDiagSteps(d) {
     'Clear code and road test to verify repair',
   ];
   const extra = {
-    'Ignition':['Remove and inspect spark plugs for fouling/wear','Swap coil to adjacent cylinder — see if misfire follows','Check fuel injector balance rate / resistance'],
-    'Fuel':['Check fuel pressure at rail with gauge','Smoke test intake system for vacuum leaks','Clean MAF sensor with MAF-specific cleaner'],
-    'O2 Sensor':['Compare upstream vs downstream O2 sensor voltage waveforms','Check for exhaust leaks at manifold and downpipe','Verify heater circuit resistance (typically 4–15 Ω)'],
-    'ABS':['Spin each wheel by hand — feel for roughness in wheel bearing','Inspect tone ring for damage, cracks, or debris','Check sensor air gap (typically 0.5–1.5mm)'],
-    'Transmission':['Check transmission fluid level and condition (burnt smell = internal damage)','Test shift solenoids with multimeter (resistance per service manual)','Perform transmission relearn procedure after repair'],
-    'EV/Hybrid':['⚠ HIGH VOLTAGE — follow lockout/tagout procedure before service','Check HV battery cell voltages via BMS data','Inspect HV cable orange sheathing for damage','Check coolant level in EV battery cooling loop'],
+    'Ignition': ['Remove and inspect spark plugs for fouling/wear','Swap coil to adjacent cylinder — see if misfire follows','Check fuel injector balance rate / resistance'],
+    'Fuel': ['Check fuel pressure at rail with gauge','Smoke test intake system for vacuum leaks','Clean MAF sensor with MAF-specific cleaner'],
+    'O2 Sensor': ['Compare upstream vs downstream O2 sensor voltage waveforms','Check for exhaust leaks at manifold and downpipe','Verify heater circuit resistance (typically 4–15 Ω)'],
+    'ABS': ['Spin each wheel by hand — feel for roughness in wheel bearing','Inspect tone ring for damage, cracks, or debris','Check sensor air gap (typically 0.5–1.5mm)'],
+    'Transmission': ['Check transmission fluid level and condition (burnt smell = internal damage)','Test shift solenoids with multimeter (resistance per service manual)','Perform transmission relearn procedure after repair'],
+    'EV/Hybrid': ['⚠ HIGH VOLTAGE — follow lockout/tagout procedure before service','Check HV battery cell voltages via BMS data','Inspect HV cable orange sheathing for damage','Check coolant level in EV battery cooling loop'],
   };
-  return [...generic, ...(extra[d.sys]||[])];
+  return [...generic, ...(extra[d.sys] || [])];
 }
 
 function filterDTCs() {
@@ -1213,70 +1305,116 @@ function filterDTCs() {
 }
 
 function setDTCFilter(btn) {
-  document.querySelectorAll('[data-f]').forEach(b=>b.classList.remove('on'));
+  document.querySelectorAll('[data-f]').forEach(b => b.classList.remove('on'));
   btn.classList.add('on');
   currentDTCFilter = btn.dataset.f;
 }
 
-function runScan() {
-  toast('Scanning all modules for DTCs...','ok');
-  // Simulate discovering modules
-  const modulesByType = {
-    car:['PCM','TCM','BCM','EBCM (ABS)','SRS (Airbag)','IPC','HVAC'],
-    truck:['MCM (Engine)','ACM (Aftertreatment)','TCM (Allison)','ABS (Bendix)','Body Controller','Cluster'],
-    moto:['ECM','ABS','Cluster','TPMS'],
-    atv:['ECM','4WD Controller','Cluster'],
-    marine:['ECM','Helm','VesselView','GPS'],
-    ag:['ECU','TCU','ATC (AutoTrac)','Display','Implement'],
-    const:['Engine ECM','Machine ECM','TCU','Display','Grade Control'],
-    snow:['ECM','DESS','Gauge','iBR'],
-    golf:['Motor Controller','Charger','Display'],
-    fork:['Traction','Hydraulic','Steering','SAS'],
-    lawn:['EFI ECM'],
-    ev:['Drive Inverter','BMS','Vehicle Controller','Thermal','Autopilot','MCU'],
-    rv:['Chassis ECM','Chassis TCM','Generator','Leveling','HVAC Coach'],
-    trailer:['ABS ECU','TPMS'],
-  };
-  const mods = modulesByType[activeType] || modulesByType.car;
-  setTimeout(() => {
-    const sb = document.getElementById('sb-modules');
-    sb.innerHTML = `<div class="sb-lbl">Modules Found</div>`;
-    mods.forEach(m => {
-      sb.innerHTML += `<div class="sbi" onclick="toast('Selected: ${m}','ok')">${m}<span class="sbi-count">OK</span></div>`;
-    });
-    toast(`Scan complete — ${mods.length} modules found`,'ok');
-  }, 1200);
+async function runScan() {
+  if (!hwConnected) {
+    toast('No adapter connected. Plug in your K.A.S.H. unit and click Auto-Detect.', 'error');
+    return;
+  }
+
+  toast('Scanning all modules for DTCs...', 'success');
+  const sb = document.getElementById('sb-modules');
+  sb.innerHTML = '<div class="sb-lbl">Scanning...</div>';
+
+  const result = await API.get('/api/scan');
+
+  if (result.success) {
+    // Show modules in sidebar
+    const modules = result.modules || {};
+    sb.innerHTML = '<div class="sb-lbl">Modules Found</div>';
+    if (Object.keys(modules).length > 0) {
+      Object.entries(modules).forEach(([addr, name]) => {
+        sb.innerHTML += `<div class="sbi">${name || addr}<span class="sbi-count">OK</span></div>`;
+      });
+    } else {
+      sb.innerHTML += '<div class="sbi">ECM<span class="sbi-count">OK</span></div>';
+    }
+
+    // Show DTCs
+    const dtcs = result.dtcs || [];
+    scannedDTCs = dtcs;
+    const grid = document.getElementById('dtc-grid');
+    grid.innerHTML = '';
+
+    if (dtcs.length === 0) {
+      grid.innerHTML = '<div style="padding:20px;color:var(--gr);font-family:var(--mono);font-size:14px;text-align:center;grid-column:1/-1">✓ No DTCs found — all clear</div>';
+      toast('Scan complete — no DTCs found', 'success');
+    } else {
+      dtcs.forEach((d, i) => {
+        const sev = d.severity || 'medium';
+        const card = document.createElement('div');
+        card.className = `dtc-card sev-${sev}`;
+        card.dataset.idx = i;
+        card.onclick = () => showDTCDetail(i);
+        card.innerHTML = `
+          <div class="dtc-code">${d.code}</div>
+          <div class="dtc-desc">${d.desc || d.description || 'Unknown'}</div>
+          <div class="dtc-sys">${d.system || '—'}</div>
+        `;
+        grid.appendChild(card);
+      });
+      const badge = document.querySelector('.nb-badge');
+      if (badge) badge.textContent = dtcs.length;
+      toast(`Scan complete — ${dtcs.length} DTC(s) found`, dtcs.length > 0 ? 'error' : 'success');
+    }
+
+    // Update VIN if available
+    if (result.vin) {
+      document.getElementById('tb-vehicle').textContent = `VIN: ${result.vin}`;
+    }
+  } else {
+    sb.innerHTML = '<div class="sb-lbl">Scan Failed</div>';
+    toast(result.error || 'Scan failed', 'error');
+  }
 }
 
-function clearDTCs() {
-  toast('Clearing all DTCs... (Mode $04)','ok');
-  setTimeout(() => toast('All DTCs cleared successfully','ok'), 800);
+async function clearDTCs() {
+  if (!hwConnected) {
+    toast('No adapter connected.', 'error');
+    return;
+  }
+  toast('Clearing all DTCs... (Mode $04)', 'success');
+  const result = await API.post('/api/clear');
+  if (result.success) {
+    toast('All DTCs cleared successfully', 'success');
+    scannedDTCs = [];
+    const grid = document.getElementById('dtc-grid');
+    grid.innerHTML = '<div style="padding:20px;color:var(--gr);font-family:var(--mono);font-size:14px;text-align:center;grid-column:1/-1">✓ DTCs cleared</div>';
+    const badge = document.querySelector('.nb-badge');
+    if (badge) badge.textContent = '0';
+  } else {
+    toast(result.error || 'Clear failed', 'error');
+  }
 }
 
 // ── LIVE DATA ──────────────────────────────────────────────────────
 const LIVE_PIDS = [
-  {name:'RPM',unit:'rpm',min:0,max:8000,color:'var(--gr)',val:0},
-  {name:'SPEED',unit:'km/h',min:0,max:250,color:'var(--bl)',val:0},
-  {name:'TPS',unit:'%',min:0,max:100,color:'var(--or)',val:0},
-  {name:'MAP',unit:'kPa',min:0,max:255,color:'var(--cy)',val:0},
-  {name:'ECT',unit:'°C',min:-40,max:215,color:'var(--rd)',val:0},
-  {name:'IAT',unit:'°C',min:-40,max:215,color:'var(--pu)',val:0},
-  {name:'MAF',unit:'g/s',min:0,max:655,color:'var(--lm)',val:0},
-  {name:'STFT B1',unit:'%',min:-25,max:25,color:'var(--am)',val:0},
-  {name:'LTFT B1',unit:'%',min:-25,max:25,color:'var(--am)',val:0},
-  {name:'LOAD',unit:'%',min:0,max:100,color:'var(--or)',val:0},
-  {name:'TIMING',unit:'°BTDC',min:-64,max:64,color:'var(--cy)',val:0},
-  {name:'BATT',unit:'V',min:0,max:18,color:'var(--gr)',val:0},
-  {name:'FUEL LEVEL',unit:'%',min:0,max:100,color:'var(--bl)',val:0},
-  {name:'OIL TEMP',unit:'°C',min:-40,max:210,color:'var(--rd)',val:0},
-  {name:'FUEL PRESS',unit:'kPa',min:0,max:765,color:'var(--am)',val:0},
-  {name:'BARO',unit:'kPa',min:0,max:255,color:'var(--mx)',val:0},
+  {name:'RPM',unit:'rpm',pid:0x0C,min:0,max:8000,color:'var(--gr)',val:null},
+  {name:'SPEED',unit:'km/h',pid:0x0D,min:0,max:250,color:'var(--bl)',val:null},
+  {name:'TPS',unit:'%',pid:0x11,min:0,max:100,color:'var(--or)',val:null},
+  {name:'MAP',unit:'kPa',pid:0x0B,min:0,max:255,color:'var(--cy)',val:null},
+  {name:'ECT',unit:'°C',pid:0x05,min:-40,max:215,color:'var(--rd)',val:null},
+  {name:'IAT',unit:'°C',pid:0x0F,min:-40,max:215,color:'var(--pu)',val:null},
+  {name:'MAF',unit:'g/s',pid:0x10,min:0,max:655,color:'var(--lm)',val:null},
+  {name:'STFT B1',unit:'%',pid:0x06,min:-25,max:25,color:'var(--am)',val:null},
+  {name:'LTFT B1',unit:'%',pid:0x07,min:-25,max:25,color:'var(--am)',val:null},
+  {name:'LOAD',unit:'%',pid:0x04,min:0,max:100,color:'var(--or)',val:null},
+  {name:'TIMING',unit:'°BTDC',pid:0x0E,min:-64,max:64,color:'var(--cy)',val:null},
+  {name:'BATT',unit:'V',pid:0x42,min:0,max:18,color:'var(--gr)',val:null},
+  {name:'FUEL LEVEL',unit:'%',pid:0x2F,min:0,max:100,color:'var(--bl)',val:null},
+  {name:'OIL TEMP',unit:'°C',pid:0x5C,min:-40,max:210,color:'var(--rd)',val:null},
+  {name:'FUEL PRESS',unit:'kPa',pid:0x0A,min:0,max:765,color:'var(--am)',val:null},
+  {name:'BARO',unit:'kPa',pid:0x33,min:0,max:255,color:'var(--mx)',val:null},
 ];
 
 function buildLiveGrid() {
   const grid = document.getElementById('live-grid');
   grid.innerHTML = '';
-  LIVE_PIDS.forEach((p,i) => {
+  LIVE_PIDS.forEach((p, i) => {
     grid.innerHTML += `
       <div class="ld-cell" id="ld-${i}">
         <div class="ld-name">${p.name}</div>
@@ -1291,44 +1429,165 @@ function buildLiveGrid() {
 function toggleLive() {
   liveRunning = !liveRunning;
   const btn = document.getElementById('live-toggle');
+
   if (liveRunning) {
+    if (!hwConnected) {
+      toast('No adapter connected. Cannot stream live data.', 'error');
+      liveRunning = false;
+      return;
+    }
+
     btn.textContent = '⏹ STOP';
     btn.style.background = 'var(--rd)';
-    liveInterval = setInterval(updateLiveData, 100);
+    startLiveStream();
   } else {
     btn.textContent = '▶ START';
     btn.style.background = '';
-    clearInterval(liveInterval);
+    stopLiveStream();
   }
 }
 
-function updateLiveData() {
-  LIVE_PIDS.forEach((p,i) => {
-    // Simulate realistic data
-    const range = p.max - p.min;
-    const center = p.min + range * 0.4;
-    p.val = Math.max(p.min, Math.min(p.max, p.val + (Math.random()-0.48) * range * 0.04));
-    if (p.val === 0 && p.name === 'RPM') p.val = 800 + Math.random() * 100;
-    if (p.val === 0 && p.name === 'ECT') p.val = 85 + Math.random() * 5;
-    if (p.val === 0 && p.name === 'BATT') p.val = 13.5 + Math.random() * 0.5;
-    if (p.val === 0 && p.name === 'BARO') p.val = 100 + Math.random() * 3;
+function startLiveStream() {
+  const wsProto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const wsUrl = `${wsProto}//${location.host}/ws/live`;
+
+  try {
+    liveWS = new WebSocket(wsUrl);
+  } catch (e) {
+    toast('WebSocket connection failed', 'error');
+    liveRunning = false;
+    const btn = document.getElementById('live-toggle');
+    btn.textContent = '▶ START';
+    btn.style.background = '';
+    return;
+  }
+
+  liveWS.onopen = () => {
+    // Request PID stream
+    const pids = LIVE_PIDS.map(p => p.pid);
+    liveWS.send(JSON.stringify({ cmd: 'stream_start', pids, interval: 0.1 }));
+    document.getElementById('live-hz').textContent = 'Connecting...';
+  };
+
+  let lastTs = Date.now();
+  let frameCount = 0;
+
+  liveWS.onmessage = (evt) => {
+    try {
+      const msg = JSON.parse(evt.data);
+
+      if (msg.type === 'live_data' && msg.data) {
+        frameCount++;
+        const now = Date.now();
+        if (now - lastTs > 1000) {
+          document.getElementById('live-hz').textContent = `~${frameCount} Hz`;
+          frameCount = 0;
+          lastTs = now;
+        }
+        updateLiveDisplay(msg.data);
+      } else if (msg.type === 'error') {
+        toast(msg.message || 'Live data error', 'error');
+        stopLiveStream();
+      } else if (msg.type === 'status') {
+        if (!msg.connected) {
+          toast('Vehicle not connected — cannot stream', 'error');
+          stopLiveStream();
+        }
+      }
+    } catch (e) {
+      // ignore parse errors
+    }
+  };
+
+  liveWS.onerror = () => {
+    toast('Live data connection error', 'error');
+    stopLiveStream();
+  };
+
+  liveWS.onclose = () => {
+    if (liveRunning) {
+      document.getElementById('live-hz').textContent = 'Disconnected';
+    }
+  };
+}
+
+function stopLiveStream() {
+  liveRunning = false;
+  const btn = document.getElementById('live-toggle');
+  if (btn) {
+    btn.textContent = '▶ START';
+    btn.style.background = '';
+  }
+  if (liveWS) {
+    try {
+      liveWS.send(JSON.stringify({ cmd: 'stream_stop' }));
+    } catch (e) {}
+    liveWS.close();
+    liveWS = null;
+  }
+}
+
+function updateLiveDisplay(data) {
+  // Map backend PID response keys to our LIVE_PIDS array
+  const keyMap = {
+    'RPM': ['rpm', 'engine_rpm', 'RPM'],
+    'SPEED': ['speed', 'vehicle_speed', 'SPEED'],
+    'TPS': ['throttle', 'throttle_position', 'TPS'],
+    'MAP': ['map', 'intake_map', 'MAP'],
+    'ECT': ['coolant_temp', 'ect', 'ECT'],
+    'IAT': ['intake_temp', 'iat', 'IAT'],
+    'MAF': ['maf', 'mass_air_flow', 'MAF'],
+    'STFT B1': ['stft_b1', 'short_fuel_trim_b1', 'STFT_B1'],
+    'LTFT B1': ['ltft_b1', 'long_fuel_trim_b1', 'LTFT_B1'],
+    'LOAD': ['engine_load', 'load', 'LOAD'],
+    'TIMING': ['timing_advance', 'timing', 'TIMING'],
+    'BATT': ['battery_voltage', 'batt', 'BATT'],
+    'FUEL LEVEL': ['fuel_level', 'FUEL_LEVEL'],
+    'OIL TEMP': ['oil_temp', 'OIL_TEMP'],
+    'FUEL PRESS': ['fuel_pressure', 'FUEL_PRESS'],
+    'BARO': ['barometric', 'baro', 'BARO'],
+  };
+
+  LIVE_PIDS.forEach((p, i) => {
+    let val = null;
+    const keys = keyMap[p.name] || [p.name.toLowerCase()];
+    for (const k of keys) {
+      if (data[k] !== undefined) { val = parseFloat(data[k]); break; }
+    }
+    // Also try hex PID key
+    if (val === null) {
+      const hexKey = '0x' + p.pid.toString(16).padStart(2, '0').toUpperCase();
+      if (data[hexKey] !== undefined) val = parseFloat(data[hexKey]);
+    }
+    if (val === null && data[`pid_${p.pid}`] !== undefined) {
+      val = parseFloat(data[`pid_${p.pid}`]);
+    }
 
     const el = document.getElementById(`ldv-${i}`);
     const bar = document.getElementById(`ldb-${i}`);
-    if (el) {
-      const dec = (p.unit === 'V' || p.unit === '%' || p.unit === 'g/s') ? 1 : 0;
-      el.textContent = p.val.toFixed(dec);
-    }
-    if (bar) {
-      const pct = Math.max(0, Math.min(100, ((p.val - p.min) / (p.max - p.min)) * 100));
-      bar.style.width = pct + '%';
+
+    if (val !== null && !isNaN(val)) {
+      p.val = val;
+      if (el) {
+        const dec = (p.unit === 'V' || p.unit === '%' || p.unit === 'g/s') ? 1 : 0;
+        el.textContent = val.toFixed(dec);
+        el.style.color = '';
+      }
+      if (bar) {
+        const pct = Math.max(0, Math.min(100, ((val - p.min) / (p.max - p.min)) * 100));
+        bar.style.width = pct + '%';
+      }
+    } else {
+      if (el && p.val === null) {
+        el.textContent = '—';
+        el.style.color = 'var(--mx)';
+      }
     }
   });
-  document.getElementById('live-hz').textContent = '~20 Hz';
 }
 
 function configLivePIDs() {
-  toast('PID selection — use sidebar to add/remove parameters','');
+  toast('PID selection — connect hardware to configure', '');
 }
 
 // ── TROUBLESHOOTER ─────────────────────────────────────────────────
@@ -1385,7 +1644,7 @@ function buildSymptoms() {
 }
 
 function startTroubleshoot(id) {
-  const s = SYMPTOMS.find(x=>x.id===id);
+  const s = SYMPTOMS.find(x => x.id === id);
   if (!s) return;
   if (s.tree) {
     showQuestion(s.tree[0], [s.name]);
@@ -1403,15 +1662,15 @@ function startTroubleshoot(id) {
         </div>
       </div>
     `;
-    el.innerHTML += `<div style="margin-top:8px"><button class="sec-action" onclick="buildSymptoms()">← BACK TO SYMPTOMS</button></div>`;
+    el.innerHTML += '<div style="margin-top:8px"><button class="sec-action" onclick="buildSymptoms()">← BACK TO SYMPTOMS</button></div>';
   }
 }
 
 function showQuestion(node, path) {
   const el = document.getElementById('ts-content');
   document.getElementById('ts-breadcrumb').style.display = 'flex';
-  document.getElementById('ts-breadcrumb').innerHTML = path.map((p,i) =>
-    `${i>0?'<span class="ts-arrow">›</span>':''}<span class="ts-crumb ${i===path.length-1?'active':''}">${p}</span>`
+  document.getElementById('ts-breadcrumb').innerHTML = path.map((p, i) =>
+    `${i > 0 ? '<span class="ts-arrow">›</span>' : ''}<span class="ts-crumb ${i === path.length - 1 ? 'active' : ''}">${p}</span>`
   ).join('');
 
   if (node.result) {
@@ -1426,19 +1685,19 @@ function showQuestion(node, path) {
   }
 
   let html = `<div class="ts-question">${node.q}</div>`;
-  node.opts.forEach((opt,i) => {
+  node.opts.forEach((opt, i) => {
     html += `<div class="ts-option" data-oi="${i}">${opt.a}</div>`;
   });
-  html += `<div style="margin-top:12px"><button class="sec-action-outline" onclick="buildSymptoms();document.getElementById('ts-breadcrumb').style.display='none'">← START OVER</button></div>`;
+  html += '<div style="margin-top:12px"><button class="sec-action-outline" onclick="buildSymptoms();document.getElementById(\'ts-breadcrumb\').style.display=\'none\'">← START OVER</button></div>';
   el.innerHTML = html;
 
   document.querySelectorAll('.ts-option').forEach(o => {
-    o.onclick = function() {
+    o.onclick = function () {
       const oi = parseInt(this.dataset.oi);
       const opt = node.opts[oi];
-      const newPath = [...path, opt.a.substring(0,30)+'...'];
+      const newPath = [...path, opt.a.substring(0, 30) + '...'];
       if (opt.result) {
-        showQuestion({result:opt.result}, newPath);
+        showQuestion({ result: opt.result }, newPath);
       } else if (opt.next) {
         showQuestion(opt.next[0], newPath);
       }
@@ -1471,7 +1730,7 @@ const INITS = [
 function buildInitCards() {
   const grid = document.getElementById('init-grid');
   grid.innerHTML = '';
-  INITS.forEach((p,i) => {
+  INITS.forEach((p, i) => {
     grid.innerHTML += `
       <div class="init-card" onclick="showInitDetail(${i})">
         <div class="init-title">${p.title}</div>
@@ -1497,7 +1756,7 @@ function showInitDetail(idx) {
       <div class="init-when" style="margin-bottom:16px">${p.when}</div>
       <div class="dd-section">
         <div class="dd-section-title">Procedure Steps</div>
-        ${p.steps.map((s,i) => `<div class="dd-step"><div class="dd-step-num">${i+1}</div><div class="dd-step-text">${s}</div></div>`).join('')}
+        ${p.steps.map((s, i) => `<div class="dd-step"><div class="dd-step-num">${i + 1}</div><div class="dd-step-text">${s}</div></div>`).join('')}
       </div>
     </div>
   `;
@@ -1512,52 +1771,62 @@ function filterInits() {
 }
 
 // ── FREEZE FRAME ───────────────────────────────────────────────────
-function readFreezeFrame() {
-  toast('Reading freeze frame data from ECU...','ok');
-  setTimeout(() => {
-    const fc = document.getElementById('freeze-content');
+async function readFreezeFrame() {
+  if (!hwConnected) {
+    toast('No adapter connected. Cannot read freeze frame.', 'error');
+    return;
+  }
+
+  toast('Reading freeze frame data from ECU...', 'success');
+  const result = await API.get('/api/freeze');
+  const fc = document.getElementById('freeze-content');
+
+  if (result.success && result.data) {
+    const d = result.data;
     fc.innerHTML = `
       <table class="ff-table">
-        <tr><th>Parameter</th><th>Value</th><th>Unit</th><th>At DTC</th></tr>
-        <tr><td>DTC that caused freeze frame</td><td colspan="3" style="color:var(--or);font-weight:700">P0301 — Cylinder 1 Misfire Detected</td></tr>
-        <tr><td>Engine RPM</td><td>2,847</td><td>rpm</td><td>—</td></tr>
-        <tr><td>Engine Load</td><td>42.3</td><td>%</td><td>—</td></tr>
-        <tr><td>Coolant Temperature</td><td>91</td><td>°C</td><td>—</td></tr>
-        <tr><td>Short Term Fuel Trim B1</td><td>-3.1</td><td>%</td><td>—</td></tr>
-        <tr><td>Long Term Fuel Trim B1</td><td>+5.4</td><td>%</td><td>—</td></tr>
-        <tr><td>Fuel Pressure</td><td>39.2</td><td>kPa</td><td>—</td></tr>
-        <tr><td>Intake MAP</td><td>62</td><td>kPa</td><td>—</td></tr>
-        <tr><td>Vehicle Speed</td><td>72</td><td>km/h</td><td>—</td></tr>
-        <tr><td>Timing Advance</td><td>22.5</td><td>°</td><td>—</td></tr>
-        <tr><td>Intake Air Temperature</td><td>34</td><td>°C</td><td>—</td></tr>
-        <tr><td>MAF Rate</td><td>18.44</td><td>g/s</td><td>—</td></tr>
-        <tr><td>Throttle Position</td><td>28.6</td><td>%</td><td>—</td></tr>
+        <tr><th>Parameter</th><th>Value</th><th>Unit</th></tr>
+        ${Object.entries(d).map(([key, val]) => `
+          <tr><td>${key.replace(/_/g, ' ')}</td><td>${val}</td><td>—</td></tr>
+        `).join('')}
       </table>
     `;
-  }, 600);
+    toast('Freeze frame data loaded', 'success');
+  } else {
+    fc.innerHTML = `
+      <div style="padding:20px;color:var(--mx);font-family:var(--mono);font-size:11px;text-align:center">
+        ${result.error || 'No freeze frame data available. DTCs must be present to capture freeze frame.'}
+      </div>
+    `;
+  }
 }
 
 // ── READINESS MONITORS ─────────────────────────────────────────────
 function buildReadiness() {
+  // Show default empty state — real data comes from readReadiness()
   const monitors = [
-    {name:'Misfire Monitor',ready:true},
-    {name:'Fuel System Monitor',ready:true},
-    {name:'Components Monitor',ready:true},
-    {name:'Catalyst Monitor',ready:false},
+    {name:'Misfire Monitor',ready:null},
+    {name:'Fuel System Monitor',ready:null},
+    {name:'Components Monitor',ready:null},
+    {name:'Catalyst Monitor',ready:null},
     {name:'Heated Catalyst Monitor',ready:null},
-    {name:'Evaporative System Monitor',ready:false},
+    {name:'Evaporative System Monitor',ready:null},
     {name:'Secondary Air System',ready:null},
     {name:'A/C Refrigerant Monitor',ready:null},
-    {name:'Oxygen Sensor Monitor',ready:true},
-    {name:'Oxygen Sensor Heater Monitor',ready:true},
-    {name:'EGR/VVT System Monitor',ready:true},
+    {name:'Oxygen Sensor Monitor',ready:null},
+    {name:'Oxygen Sensor Heater Monitor',ready:null},
+    {name:'EGR/VVT System Monitor',ready:null},
   ];
+  renderReadiness(monitors);
+}
+
+function renderReadiness(monitors) {
   const grid = document.getElementById('rm-grid');
   grid.innerHTML = '';
   monitors.forEach(m => {
-    const cls = m.ready===true ? 'rm-ready' : m.ready===false ? 'rm-not-ready' : 'rm-na';
-    const status = m.ready===true ? 'READY' : m.ready===false ? 'NOT READY' : 'N/A';
-    const color = m.ready===true ? 'var(--gr)' : m.ready===false ? 'var(--rd)' : 'var(--mx)';
+    const cls = m.ready === true ? 'rm-ready' : m.ready === false ? 'rm-not-ready' : 'rm-na';
+    const status = m.ready === true ? 'READY' : m.ready === false ? 'NOT READY' : '—';
+    const color = m.ready === true ? 'var(--gr)' : m.ready === false ? 'var(--rd)' : 'var(--mx)';
     grid.innerHTML += `
       <div class="rm-cell">
         <div class="rm-dot ${cls}"></div>
@@ -1568,8 +1837,25 @@ function buildReadiness() {
   });
 }
 
-function readReadiness() {
-  toast('Reading I/M readiness monitors from ECU...','ok');
+async function readReadiness() {
+  if (!hwConnected) {
+    toast('No adapter connected. Cannot read readiness monitors.', 'error');
+    return;
+  }
+
+  toast('Reading I/M readiness monitors from ECU...', 'success');
+  const result = await API.get('/api/readiness');
+
+  if (result.success && result.monitors) {
+    const monitors = Object.entries(result.monitors).map(([name, ready]) => ({
+      name: name.replace(/_/g, ' '),
+      ready: ready,
+    }));
+    renderReadiness(monitors);
+    toast('Readiness data loaded', 'success');
+  } else {
+    toast(result.error || 'Could not read readiness monitors', 'error');
+  }
 }
 
 // ── COVERAGE MAP ───────────────────────────────────────────────────
@@ -1587,7 +1873,7 @@ function buildCoverage() {
         make,
         years: `${t.years[0]}–${t.years[1]}`,
         protos,
-        models: models.slice(0, 8).join(' · ') + (models.length > 8 ? ` · +${models.length-8} more` : ''),
+        models: models.slice(0, 8).join(' · ') + (models.length > 8 ? ` · +${models.length - 8} more` : ''),
         searchText: `${t.label} ${make} ${models.join(' ')} ${protos.join(' ')}`.toLowerCase(),
       });
     });
@@ -1605,29 +1891,28 @@ function buildCoverage() {
     `;
   });
 
-  // Update counts
   let totalModels = 0;
   Object.values(MAKES).forEach(makes => Object.values(makes).forEach(m => totalModels += m.length));
   document.getElementById('cov-models').textContent = totalModels + '+';
-  document.getElementById('cov-makes').textContent = Object.values(MAKES).reduce((a,m) => a + Object.keys(m).length, 0) + '';
+  document.getElementById('cov-makes').textContent = Object.values(MAKES).reduce((a, m) => a + Object.keys(m).length, 0) + '';
 }
 
 function getProtosForType(type) {
   const m = {
-    car:['CAN 500k','ISO 9141','KWP2000','J1850'],
-    truck:['J1939','J1708','RP1210'],
-    moto:['K-Line','KDS','HDS','CAN'],
-    atv:['CAN','BUDS','K-Line'],
-    marine:['NMEA 2000','SmartCraft','CAN'],
-    ag:['ISOBUS','J1939','CAN'],
-    const:['J1939','CAT ET','CAN'],
-    snow:['BUDS','CAN','K-Line'],
-    golf:['Serial','CAN'],
-    fork:['CAN','Serial'],
-    lawn:['CAN','Flash Code'],
-    ev:['CAN 500k','UDS'],
-    rv:['CAN','J1939'],
-    trailer:['J1939','ABS'],
+    car: ['CAN 500k', 'ISO 9141', 'KWP2000', 'J1850'],
+    truck: ['J1939', 'J1708', 'RP1210'],
+    moto: ['K-Line', 'KDS', 'HDS', 'CAN'],
+    atv: ['CAN', 'BUDS', 'K-Line'],
+    marine: ['NMEA 2000', 'SmartCraft', 'CAN'],
+    ag: ['ISOBUS', 'J1939', 'CAN'],
+    const: ['J1939', 'CAT ET', 'CAN'],
+    snow: ['BUDS', 'CAN', 'K-Line'],
+    golf: ['Serial', 'CAN'],
+    fork: ['CAN', 'Serial'],
+    lawn: ['CAN', 'Flash Code'],
+    ev: ['CAN 500k', 'UDS'],
+    rv: ['CAN', 'J1939'],
+    trailer: ['J1939', 'ABS'],
   };
   return m[type] || ['CAN'];
 }
@@ -1777,54 +2062,18 @@ function buildMaintenance() {
       Confirm your vehicle above for model-specific maintenance schedules. General guidelines below.
     </div>
     <div class="init-grid">
-      <div class="init-card">
-        <div class="init-title">Engine Oil & Filter</div>
-        <div class="init-desc">Gas: 5,000–7,500 mi (conventional) or 7,500–10,000 mi (synthetic)<br>Diesel: 5,000–7,500 mi<br>Motorcycle: 3,000–5,000 mi<br>Marine outboard: Every 100 hours or annually</div>
-      </div>
-      <div class="init-card">
-        <div class="init-title">Transmission Fluid</div>
-        <div class="init-desc">Automatic: 30,000–60,000 mi (or "lifetime" = 100k max)<br>Manual: 30,000–60,000 mi<br>CVT: 25,000–30,000 mi<br>HD truck (Allison): 25,000 mi or per filter change</div>
-      </div>
-      <div class="init-card">
-        <div class="init-title">Coolant</div>
-        <div class="init-desc">Conventional green: 2 years / 30,000 mi<br>Long-life OAT (orange/red): 5 years / 100,000 mi<br>Motorcycle: 2 years<br>Marine: Annually (freshwater flush after every saltwater use)</div>
-      </div>
-      <div class="init-card">
-        <div class="init-title">Brake Fluid</div>
-        <div class="init-desc">DOT 3/4: Every 2 years (hygroscopic — absorbs moisture)<br>Motorcycle: Every 2 years<br>Performance/track: Flush before every track day</div>
-      </div>
-      <div class="init-card">
-        <div class="init-title">Air Filter</div>
-        <div class="init-desc">Car/Truck: 15,000–30,000 mi<br>Dusty conditions: Inspect every 5,000 mi<br>Motorcycle: Every 12,000 mi<br>Lawn mower: Every 25 hours</div>
-      </div>
-      <div class="init-card">
-        <div class="init-title">Spark Plugs</div>
-        <div class="init-desc">Copper: 30,000 mi<br>Platinum: 60,000 mi<br>Iridium: 100,000 mi<br>Motorcycle: 7,500–15,000 mi<br>Small engine: Every 100 hours</div>
-      </div>
-      <div class="init-card">
-        <div class="init-title">Battery</div>
-        <div class="init-desc">Car/Truck: 3–5 years (load test annually after 3)<br>Motorcycle: 2–4 years<br>Golf Cart (lead-acid): 4–6 years (check water monthly)<br>Golf Cart (lithium): 8–12 years<br>Marine: Test specific gravity with hydrometer</div>
-      </div>
-      <div class="init-card">
-        <div class="init-title">Diesel Exhaust Fluid (DEF)</div>
-        <div class="init-desc">Consumption: ~2.5% of fuel usage<br>Top off every fill-up or per dash warning<br>Quality: API-certified, 32.5% urea concentration<br>Do NOT use old/contaminated DEF</div>
-      </div>
-      <div class="init-card">
-        <div class="init-title">Timing Belt / Chain</div>
-        <div class="init-desc">Belt (interference engine): 60,000–100,000 mi — CRITICAL<br>Belt (non-interference): 60,000–100,000 mi<br>Chain: Typically lifetime, but inspect for stretch at 150k+<br>Replace water pump with belt on interference engines</div>
-      </div>
-      <div class="init-card">
-        <div class="init-title">Tire Rotation & Alignment</div>
-        <div class="init-desc">Rotation: Every 5,000–7,500 mi<br>Alignment: Annually or after hitting curb/pothole<br>Balance: When vibration is felt or new tires installed<br>TPMS sensor battery: 5–7 year lifespan</div>
-      </div>
-      <div class="init-card">
-        <div class="init-title">Differential Fluid</div>
-        <div class="init-desc">Front/Rear diff: 30,000–60,000 mi<br>Transfer case: 30,000 mi<br>Heavy towing: Cut intervals in half<br>ATV/UTV: Check after water crossing, change every 1,000 mi</div>
-      </div>
-      <div class="init-card">
-        <div class="init-title">EV / Hybrid Battery</div>
-        <div class="init-desc">Cabin filter: 15,000–20,000 mi<br>Brake fluid: Every 3 years<br>Coolant (battery loop): Per manufacturer (often 150k mi)<br>Tire rotation: Every 5,000 mi (EVs wear faster — heavy)<br>12V accessory battery: 3–5 years</div>
-      </div>
+      <div class="init-card"><div class="init-title">Engine Oil & Filter</div><div class="init-desc">Gas: 5,000–7,500 mi (conventional) or 7,500–10,000 mi (synthetic)<br>Diesel: 5,000–7,500 mi<br>Motorcycle: 3,000–5,000 mi<br>Marine outboard: Every 100 hours or annually</div></div>
+      <div class="init-card"><div class="init-title">Transmission Fluid</div><div class="init-desc">Automatic: 30,000–60,000 mi (or "lifetime" = 100k max)<br>Manual: 30,000–60,000 mi<br>CVT: 25,000–30,000 mi<br>HD truck (Allison): 25,000 mi or per filter change</div></div>
+      <div class="init-card"><div class="init-title">Coolant</div><div class="init-desc">Conventional green: 2 years / 30,000 mi<br>Long-life OAT (orange/red): 5 years / 100,000 mi<br>Motorcycle: 2 years<br>Marine: Annually (freshwater flush after every saltwater use)</div></div>
+      <div class="init-card"><div class="init-title">Brake Fluid</div><div class="init-desc">DOT 3/4: Every 2 years (hygroscopic — absorbs moisture)<br>Motorcycle: Every 2 years<br>Performance/track: Flush before every track day</div></div>
+      <div class="init-card"><div class="init-title">Air Filter</div><div class="init-desc">Car/Truck: 15,000–30,000 mi<br>Dusty conditions: Inspect every 5,000 mi<br>Motorcycle: Every 12,000 mi<br>Lawn mower: Every 25 hours</div></div>
+      <div class="init-card"><div class="init-title">Spark Plugs</div><div class="init-desc">Copper: 30,000 mi<br>Platinum: 60,000 mi<br>Iridium: 100,000 mi<br>Motorcycle: 7,500–15,000 mi<br>Small engine: Every 100 hours</div></div>
+      <div class="init-card"><div class="init-title">Battery</div><div class="init-desc">Car/Truck: 3–5 years (load test annually after 3)<br>Motorcycle: 2–4 years<br>Golf Cart (lead-acid): 4–6 years (check water monthly)<br>Golf Cart (lithium): 8–12 years<br>Marine: Test specific gravity with hydrometer</div></div>
+      <div class="init-card"><div class="init-title">Diesel Exhaust Fluid (DEF)</div><div class="init-desc">Consumption: ~2.5% of fuel usage<br>Top off every fill-up or per dash warning<br>Quality: API-certified, 32.5% urea concentration<br>Do NOT use old/contaminated DEF</div></div>
+      <div class="init-card"><div class="init-title">Timing Belt / Chain</div><div class="init-desc">Belt (interference engine): 60,000–100,000 mi — CRITICAL<br>Belt (non-interference): 60,000–100,000 mi<br>Chain: Typically lifetime, but inspect for stretch at 150k+<br>Replace water pump with belt on interference engines</div></div>
+      <div class="init-card"><div class="init-title">Tire Rotation & Alignment</div><div class="init-desc">Rotation: Every 5,000–7,500 mi<br>Alignment: Annually or after hitting curb/pothole<br>Balance: When vibration is felt or new tires installed<br>TPMS sensor battery: 5–7 year lifespan</div></div>
+      <div class="init-card"><div class="init-title">Differential Fluid</div><div class="init-desc">Front/Rear diff: 30,000–60,000 mi<br>Transfer case: 30,000 mi<br>Heavy towing: Cut intervals in half<br>ATV/UTV: Check after water crossing, change every 1,000 mi</div></div>
+      <div class="init-card"><div class="init-title">EV / Hybrid Battery</div><div class="init-desc">Cabin filter: 15,000–20,000 mi<br>Brake fluid: Every 3 years<br>Coolant (battery loop): Per manufacturer (often 150k mi)<br>Tire rotation: Every 5,000 mi (EVs wear faster — heavy)<br>12V accessory battery: 3–5 years</div></div>
     </div>
   `;
 }
@@ -1832,62 +2081,19 @@ function buildMaintenance() {
 // ── TOAST ──────────────────────────────────────────────────────────
 function toast(msg, type) {
   let t = document.getElementById('toast');
-  if(!t){
+  if (!t) {
     t = document.createElement('div');
     t.id = 'toast';
     document.body.appendChild(t);
   }
   t.innerText = msg;
   t.className = 'on';
-  if(type === 'error') t.classList.add('err');
-  if(type === 'success') t.classList.add('ok');
-  
+  if (type === 'error') t.classList.add('err');
+  if (type === 'success') t.classList.add('ok');
   clearTimeout(window.toastTM);
   window.toastTM = setTimeout(() => { t.className = ''; }, 3000);
 }
 
-// ── ELECTRON HARDWARE SYNC ENGINES ─────────────────────────────────
-async function runScan() {
-  toast("Initializing secure vehicle bus link...", "success");
-  
-  if (window.api && window.api.connect) {
-    const response = await window.api.connect();
-    if (response.success) {
-      toast("Diagnostic link established on COM3!", "success");
-      document.getElementById('tb-protocol').innerText = "ISO 15765 (CAN)";
-      document.getElementById('sb-proto-info').innerText = "CAN Bus Active";
-      startLiveStream();
-    } else {
-      toast("Adapter error: " + response.error, "error");
-    }
-  } else {
-    toast("Simulation Mode: Hardware adapter not detected.", "error");
-  }
-}
-
-function startLiveStream() {
-  setInterval(async () => {
-    if (window.api && window.api.getRPM) {
-      const hexData = await window.api.getRPM();
-      // Look for custom live engine cell to update directly
-      const rpmDisplay = document.querySelector('[data-pid="RPM"]');
-      if (rpmDisplay) {
-        rpmDisplay.innerText = parseOBDRPM(hexData) + " RPM";
-      }
-    }
-  }, 250);
-}
-
-function parseOBDRPM(hexString) {
-  // Simple helper to cleanly isolate metrics out of returned bus sequences
-  if(!hexString || hexString.includes("ERROR")) return 0;
-  return Math.floor(Math.random() * (3200 - 800 + 1)) + 800; 
-}
-
-// --- INITIALIZATION COUNT ENGINE ---
-let totalModels = 0;
-// Keep the rest of your view-switching logic here if needed...
 </script>
 </body>
 </html>
-

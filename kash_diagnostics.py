@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """
-K.A.S.H. TUNING — UNIVERSAL DIAGNOSTICS ENGINE v2.0
-======================================================
+K.A.S.H. DIAGNOSTICS v2.1 — Universal Vehicle Diagnostic Platform
+====================================================================
 Copyright (c) 2026 ObscureOctopus LLC. All Rights Reserved.
+Single-file backend.  Run:  python kash_diagnostics.py  →  http://localhost:8000
 
 If it has wheels and a computer, K.A.S.H. can diagnose it.
 
@@ -50,14 +51,50 @@ PROTOCOLS:
 Hardware interface: K.A.S.H. unit (RPi + MCP2515 CAN + K-Line via L9637)
 """
 
+from __future__ import annotations
+
+import asyncio
+import glob as _glob
 import json
 import logging
+import os
 import struct
+import sys
+import threading
 import time
 from dataclasses import dataclass, field
 from enum import IntEnum, auto
+from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
+# Optional hardware libs — degrade gracefully if missing
+try:
+    import serial
+    import serial.tools.list_ports as list_ports
+    _SERIAL_OK = True
+except ImportError:
+    serial = None          # type: ignore
+    list_ports = None      # type: ignore
+    _SERIAL_OK = False
+
+try:
+    import can as _can
+    _CAN_OK = True
+except ImportError:
+    _can = None            # type: ignore
+    _CAN_OK = False
+
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse
+from pydantic import BaseModel
+import uvicorn
+
+logging.basicConfig(
+    level=os.getenv("KASH_LOG_LEVEL", "INFO").upper(),
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    stream=sys.stdout,
+)
 log = logging.getLogger("kash.diag")
 
 
@@ -2534,7 +2571,7 @@ class KLineInterface(DiagnosticInterface):
     def connect(self) -> bool:
         """5-baud or fast init depending on protocol."""
         try:
-            import serial as pyserial
+            import serial as pyserial  # type: ignore[import-untyped]
             self._serial = pyserial.Serial(
                 self.serial, self.baud,
                 bytesize=pyserial.EIGHTBITS,
@@ -2891,9 +2928,448 @@ class UniversalDiagnosticEngine:
         self.detected_protocol = None
 
 
+
 # ═══════════════════════════════════════════════════════════════════
-#  SECTION 10 — CLI TEST INTERFACE
+#  SECTION 10 — FASTAPI WEB SERVER
 # ═══════════════════════════════════════════════════════════════════
+
+VERSION = "2.1.0"
+
+# ── Global state ────────────────────────────────────────────────────
+_engine: Optional[UniversalDiagnosticEngine] = None
+_engine_lock = threading.Lock()
+_ws_clients: set[WebSocket] = set()
+_live_streaming = False
+_live_thread: Optional[threading.Thread] = None
+
+
+# ── Pydantic models ────────────────────────────────────────────────
+
+class ConnectRequest(BaseModel):
+    port: Optional[str] = None           # e.g. "COM3", "/dev/ttyUSB0"
+    can_interface: Optional[str] = None  # e.g. "can0", "slcan0"
+    can_channel: Optional[str] = None
+    can_bitrate: int = 500000
+
+class VehicleSelectRequest(BaseModel):
+    year: Optional[int] = None
+    make: Optional[str] = None
+    model: Optional[str] = None
+    type: Optional[str] = None
+
+class DTCLookupResponse(BaseModel):
+    code: str
+    desc: str
+    system: str
+    severity: str
+
+class StatusResponse(BaseModel):
+    connected: bool
+    vehicle_type: Optional[str] = None
+    protocol: Optional[str] = None
+    vin: Optional[str] = None
+    serial_ok: bool
+    can_ok: bool
+    available_ports: list[str]
+
+
+# ── Hardware helpers ────────────────────────────────────────────────
+
+def _find_serial_ports() -> list[str]:
+    """Auto-detect available serial ports."""
+    ports = []
+    if _SERIAL_OK and list_ports:
+        for p in list_ports.comports():
+            ports.append(p.device)
+    else:
+        # Fallback: scan common paths
+        for pattern in ["/dev/ttyUSB*", "/dev/ttyACM*", "/dev/ttyAMA*",
+                        "/dev/tty.usbserial*", "/dev/tty.usbmodem*"]:
+            ports.extend(sorted(_glob.glob(pattern)))
+        # Windows COM ports
+        for i in range(1, 33):
+            port = f"COM{i}"
+            try:
+                s = serial.Serial(port)
+                s.close()
+                ports.append(port)
+            except Exception:
+                pass
+    return ports
+
+
+def _setup_can(interface: str = "socketcan", channel: str = "can0",
+               bitrate: int = 500000):
+    """Try to set up a python-can bus."""
+    if not _CAN_OK:
+        return None
+    try:
+        bus = _can.interface.Bus(interface=interface, channel=channel,
+                                bitrate=bitrate)
+        log.info("CAN bus opened: %s / %s @ %d", interface, channel, bitrate)
+        return bus
+    except Exception as e:
+        log.warning("CAN bus setup failed: %s", e)
+        return None
+
+
+def _get_engine() -> Optional[UniversalDiagnosticEngine]:
+    """Return the current engine singleton."""
+    return _engine
+
+
+# ── FastAPI app ─────────────────────────────────────────────────────
+
+app = FastAPI(title="K.A.S.H. Diagnostics", version=VERSION)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+# ── Health ──────────────────────────────────────────────────────────
+
+@app.get("/health")
+def health():
+    return {"status": "ok", "version": VERSION}
+
+
+# ── Status ──────────────────────────────────────────────────────────
+
+@app.get("/api/status", response_model=StatusResponse)
+def api_status():
+    eng = _get_engine()
+    connected = eng is not None and eng.interface is not None and eng.interface.is_connected
+    return StatusResponse(
+        connected=connected,
+        vehicle_type=eng.vehicle_type.name if eng and eng.vehicle_type else None,
+        protocol=eng.detected_protocol.name if eng and eng.detected_protocol else None,
+        vin=None,
+        serial_ok=_SERIAL_OK,
+        can_ok=_CAN_OK,
+        available_ports=_find_serial_ports(),
+    )
+
+
+# ── Connect / Disconnect ───────────────────────────────────────────
+
+@app.post("/api/connect")
+def api_connect(req: ConnectRequest = ConnectRequest()):
+    global _engine
+    with _engine_lock:
+        # Close any existing connection
+        if _engine:
+            _engine.disconnect()
+
+        can_bus = None
+        serial_port = req.port
+
+        # Try CAN first
+        if req.can_interface or _CAN_OK:
+            iface = req.can_interface or "socketcan"
+            chan = req.can_channel or "can0"
+            can_bus = _setup_can(iface, chan, req.can_bitrate)
+
+        # Auto-detect serial port if not specified
+        if not serial_port:
+            ports = _find_serial_ports()
+            if ports:
+                serial_port = ports[0]
+                log.info("Auto-selected serial port: %s", serial_port)
+
+        if not can_bus and not serial_port:
+            return {
+                "success": False,
+                "error": "No adapter detected. Connect a CAN/OBD-II adapter or specify a serial port.",
+                "available_ports": _find_serial_ports(),
+            }
+
+        _engine = UniversalDiagnosticEngine(can_bus=can_bus,
+                                            serial_port=serial_port or "/dev/ttyAMA0")
+        vtype, proto = _engine.auto_detect()
+
+        if vtype is None:
+            return {
+                "success": False,
+                "error": "No vehicle detected. Check adapter connection and ignition.",
+                "port": serial_port,
+                "can_bus": can_bus is not None,
+            }
+
+        return {
+            "success": True,
+            "vehicle_type": vtype.name,
+            "protocol": proto.name if proto else "Unknown",
+            "port": serial_port,
+        }
+
+
+@app.post("/api/disconnect")
+def api_disconnect():
+    global _engine
+    with _engine_lock:
+        if _engine:
+            _engine.disconnect()
+            _engine = None
+    return {"success": True}
+
+
+# ── DTC Scan / Clear ───────────────────────────────────────────────
+
+@app.get("/api/scan")
+def api_scan():
+    eng = _get_engine()
+    if not eng or not eng.interface or not eng.interface.is_connected:
+        return {"success": False, "error": "Not connected to vehicle", "dtcs": []}
+    try:
+        result = eng.scan_all()
+        return {"success": True, **result}
+    except Exception as e:
+        log.exception("Scan error")
+        return {"success": False, "error": str(e), "dtcs": []}
+
+
+@app.post("/api/clear")
+def api_clear():
+    eng = _get_engine()
+    if not eng or not eng.interface or not eng.interface.is_connected:
+        return {"success": False, "error": "Not connected to vehicle"}
+    try:
+        ok = eng.interface.clear_dtcs()
+        return {"success": ok}
+    except Exception as e:
+        log.exception("Clear DTCs error")
+        return {"success": False, "error": str(e)}
+
+
+# ── VIN ─────────────────────────────────────────────────────────────
+
+@app.get("/api/vin")
+def api_vin():
+    eng = _get_engine()
+    if not eng or not eng.interface or not eng.interface.is_connected:
+        return {"success": False, "error": "Not connected"}
+    if isinstance(eng.interface, OBD2DiagInterface):
+        vin = eng.interface.read_vin()
+        return {"success": True, "vin": vin}
+    return {"success": False, "error": "VIN read not supported for this protocol"}
+
+
+# ── Readiness ───────────────────────────────────────────────────────
+
+@app.get("/api/readiness")
+def api_readiness():
+    eng = _get_engine()
+    if not eng or not eng.interface or not eng.interface.is_connected:
+        return {"success": False, "error": "Not connected", "monitors": {}}
+    if isinstance(eng.interface, OBD2DiagInterface):
+        monitors = eng.interface.read_readiness()
+        return {"success": True, "monitors": monitors}
+    return {"success": False, "error": "Readiness not supported for this protocol",
+            "monitors": {}}
+
+
+# ── Freeze Frame ────────────────────────────────────────────────────
+
+@app.get("/api/freeze")
+def api_freeze():
+    eng = _get_engine()
+    if not eng or not eng.interface or not eng.interface.is_connected:
+        return {"success": False, "error": "Not connected", "data": None}
+    if isinstance(eng.interface, OBD2DiagInterface):
+        ff = eng.interface.read_freeze_frame()
+        return {"success": True, "data": ff}
+    return {"success": False, "error": "Freeze frame not supported for this protocol",
+            "data": None}
+
+
+# ── Module Scan ─────────────────────────────────────────────────────
+
+@app.get("/api/modules")
+def api_modules():
+    eng = _get_engine()
+    if not eng or not eng.interface or not eng.interface.is_connected:
+        return {"success": False, "error": "Not connected", "modules": {}}
+    try:
+        mods = eng.interface.read_module_info()
+        return {"success": True, "modules": mods}
+    except Exception as e:
+        return {"success": False, "error": str(e), "modules": {}}
+
+
+# ── DTC Lookup (local database — no vehicle needed) ────────────────
+
+@app.get("/api/dtc/{code}")
+def api_dtc_lookup(code: str):
+    code = code.upper().strip()
+    if code in GENERIC_DTCS:
+        info = GENERIC_DTCS[code]
+        return {"success": True, "code": code, **info}
+    # Check J1939
+    if code.startswith("SPN"):
+        try:
+            spn = int(code.replace("SPN", "").strip())
+            if spn in J1939_SPNS:
+                return {"success": True, "code": code, **J1939_SPNS[spn]}
+        except ValueError:
+            pass
+    return {"success": False, "error": f"DTC {code} not in database"}
+
+
+# ── Procedures ──────────────────────────────────────────────────────
+
+@app.get("/api/procedures")
+def api_procedures(symptom: Optional[str] = None, dtc: Optional[str] = None):
+    results = []
+    if symptom:
+        eng = UniversalDiagnosticEngine()
+        matches = eng.get_procedures_for_symptom(symptom)
+        results = [{"title": p.title, "symptoms": p.symptoms,
+                     "steps": [s.instruction for s in p.steps],
+                     "related_dtcs": p.related_dtcs} for p in matches]
+    elif dtc:
+        eng = UniversalDiagnosticEngine()
+        matches = eng.get_procedures_for_dtc(dtc)
+        results = [{"title": p.title, "symptoms": p.symptoms,
+                     "steps": [s.instruction for s in p.steps],
+                     "related_dtcs": p.related_dtcs} for p in matches]
+    else:
+        results = [{"title": p.title, "symptoms": p.symptoms,
+                     "related_dtcs": p.related_dtcs}
+                    for p in DIAGNOSTIC_PROCEDURES]
+    return {"success": True, "procedures": results}
+
+
+# ── Vehicle Database ────────────────────────────────────────────────
+
+@app.get("/api/vehicles")
+def api_vehicles():
+    """Return vehicle database for UI dropdowns."""
+    result = {}
+    for vtype, makes in VEHICLE_DATABASE.items():
+        vtype_key = vtype.name.lower()
+        result[vtype_key] = {}
+        for make_key, info in makes.items():
+            result[vtype_key][make_key] = {
+                "years": info.get("years", ""),
+                "families": info.get("families", {}),
+                "protocols": [p.name for ps in info.get("protocols", {}).values()
+                              for p in ps] if "protocols" in info else [],
+            }
+    return {"success": True, "vehicles": result}
+
+
+# ── Module Init Procedures ─────────────────────────────────────────
+
+@app.get("/api/init-procedures")
+def api_init_procedures():
+    """Return all module initialization procedures."""
+    return {"success": True, "procedures": MODULE_INIT_PROCEDURES}
+
+
+# ── WebSocket: Live PID Streaming ──────────────────────────────────
+
+@app.websocket("/ws/live")
+async def ws_live(ws: WebSocket):
+    await ws.accept()
+    _ws_clients.add(ws)
+    log.info("Live WS client connected (%d total)", len(_ws_clients))
+
+    try:
+        # Send initial status
+        eng = _get_engine()
+        connected = eng is not None and eng.interface is not None and eng.interface.is_connected
+        await ws.send_json({
+            "type": "status",
+            "connected": connected,
+            "vehicle_type": eng.vehicle_type.name if eng and eng.vehicle_type else None,
+            "protocol": eng.detected_protocol.name if eng and eng.detected_protocol else None,
+        })
+
+        while True:
+            # Read commands from client
+            try:
+                msg = await asyncio.wait_for(ws.receive_json(), timeout=0.25)
+                cmd = msg.get("cmd")
+
+                if cmd == "read_pids":
+                    pids = msg.get("pids", [0x0C, 0x0D, 0x05, 0x11, 0x04])
+                    if eng and eng.interface and eng.interface.is_connected:
+                        data = await asyncio.to_thread(eng.interface.read_live_data, pids)
+                        await ws.send_json({"type": "live_data", "data": data})
+                    else:
+                        await ws.send_json({
+                            "type": "error",
+                            "message": "Not connected to vehicle"
+                        })
+
+                elif cmd == "stream_start":
+                    pids = msg.get("pids", [0x0C, 0x0D, 0x05, 0x11, 0x04, 0x0F,
+                                            0x10, 0x06, 0x07, 0x2F, 0x0A, 0x0B])
+                    interval = msg.get("interval", 0.1)
+                    await _stream_pids(ws, eng, pids, interval)
+
+                elif cmd == "stream_stop":
+                    pass  # stream loop will check for next message
+
+                elif cmd == "ping":
+                    await ws.send_json({"type": "pong"})
+
+            except asyncio.TimeoutError:
+                # No message — send heartbeat
+                await ws.send_json({"type": "heartbeat"})
+
+    except (WebSocketDisconnect, Exception) as e:
+        log.info("Live WS client disconnected: %s", e)
+    finally:
+        _ws_clients.discard(ws)
+
+
+async def _stream_pids(ws: WebSocket, eng, pids, interval):
+    """Continuously stream PID data until client sends stream_stop or disconnects."""
+    if not eng or not eng.interface or not eng.interface.is_connected:
+        await ws.send_json({"type": "error", "message": "Not connected"})
+        return
+
+    while True:
+        try:
+            data = await asyncio.to_thread(eng.interface.read_live_data, pids)
+            await ws.send_json({"type": "live_data", "data": data})
+            await asyncio.sleep(interval)
+
+            # Check for stop command (non-blocking)
+            try:
+                msg = await asyncio.wait_for(ws.receive_json(), timeout=0.01)
+                if msg.get("cmd") == "stream_stop":
+                    await ws.send_json({"type": "stream_stopped"})
+                    return
+            except asyncio.TimeoutError:
+                pass
+
+        except Exception as e:
+            log.warning("PID stream error: %s", e)
+            await ws.send_json({"type": "error", "message": str(e)})
+            return
+
+
+# ── Serve Frontend ──────────────────────────────────────────────────
+
+@app.get("/", response_class=HTMLResponse)
+def serve_frontend():
+    """Serve the diagnostic frontend HTML."""
+    here = Path(__file__).parent / "KASH_Diagnostics.html"
+    if here.exists():
+        return HTMLResponse(here.read_text(encoding="utf-8"))
+    return HTMLResponse(
+        "<h1>K.A.S.H. Diagnostics</h1>"
+        "<p>Place KASH_Diagnostics.html next to kash_diagnostics.py</p>"
+    )
+
+
+# ── CLI fallback (for database queries without server) ──────────────
 
 def print_vehicle_database():
     """Print the full vehicle coverage database."""
@@ -2901,10 +3377,7 @@ def print_vehicle_database():
     print("  K.A.S.H. DIAGNOSTICS — UNIVERSAL VEHICLE COVERAGE")
     print("  If it has wheels and a computer, K.A.S.H. can diagnose it.")
     print("=" * 70)
-
     total_makes = 0
-    total_models = 0
-
     for vtype, makes in VEHICLE_DATABASE.items():
         print(f"\n{'─' * 60}")
         print(f"  {vtype.name.replace('_', ' ')}")
@@ -2913,77 +3386,58 @@ def print_vehicle_database():
             total_makes += 1
             name = make_key.replace("_", " ")
             years = info.get("years", "")
-            protocols = []
-            if "protocols" in info:
-                for yr, protos in info["protocols"].items():
-                    for p in protos:
-                        if p.name not in protocols:
-                            protocols.append(p.name)
-
             print(f"\n  {name}")
             if years:
-                print(f"    Years:     {years}")
-            if protocols:
-                print(f"    Protocols: {', '.join(protocols)}")
-            if "brands" in info:
-                print(f"    Brands:    {', '.join(info['brands'])}")
-            if "families" in info:
-                for fam, models in info["families"].items():
-                    total_models += len(models) if isinstance(models, list) else 0
-                    if isinstance(models, list):
-                        print(f"    {fam}: {', '.join(models)}")
-            if "engines" in info:
-                print(f"    Engines:   {', '.join(info['engines'])}")
-            if "modules" in info:
-                print(f"    Modules:   {', '.join(info['modules'][:8])}{'...' if len(info.get('modules',[])) > 8 else ''}")
-
+                print(f"    Years: {years}")
     print(f"\n{'=' * 70}")
     print(f"  Total vehicle types: {len(VehicleType)}")
     print(f"  Total makes/brands:  {total_makes}")
-    print(f"  Total models:        {total_models}+")
     print(f"  Total protocols:     {len(Protocol)}")
     print(f"  Total generic DTCs:  {len(GENERIC_DTCS)}")
     print(f"  Total J1939 SPNs:    {len(J1939_SPNS)}")
     print(f"  Diag procedures:     {len(DIAGNOSTIC_PROCEDURES)}")
-    print(f"  Module init procs:   {len(MODULE_INIT_PROCEDURES)}")
+    print(f"  Init procedures:     {len(MODULE_INIT_PROCEDURES)}")
     print(f"{'=' * 70}\n")
 
 
-if __name__ == "__main__":
-    import sys
-    logging.basicConfig(level=logging.INFO,
-                        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
+# ═══════════════════════════════════════════════════════════════════
+#  MAIN
+# ═══════════════════════════════════════════════════════════════════
 
+if __name__ == "__main__":
     if "--coverage" in sys.argv:
         print_vehicle_database()
+        sys.exit(0)
     elif "--dtc" in sys.argv and len(sys.argv) > 2:
         code = sys.argv[2].upper()
-        engine = UniversalDiagnosticEngine()
-        info = engine.lookup_dtc(code)
+        info = GENERIC_DTCS.get(code)
         if info:
-            print(f"\n  {info['code']}: {info['desc']}")
+            print(f"\n  {code}: {info['desc']}")
             print(f"  System:   {info['system']}")
             print(f"  Severity: {info['severity']}")
-            procs = engine.get_procedures_for_dtc(code)
-            if procs:
-                print(f"\n  Related diagnostic procedures:")
-                for p in procs:
-                    print(f"    → {p.title}")
         else:
             print(f"\n  DTC {code} not found in database")
-    else:
-        print("""
+        sys.exit(0)
+
+    host = os.getenv("KASH_HOST", "0.0.0.0")
+    port = int(os.getenv("KASH_PORT", "8000"))
+
+    print(f"""
 ╔═══════════════════════════════════════════════════════════╗
-║  K.A.S.H. UNIVERSAL DIAGNOSTICS ENGINE v2.0              ║
+║  K.A.S.H. DIAGNOSTICS v{VERSION}                           ║
 ║  Copyright (c) 2026 ObscureOctopus LLC                   ║
 ╠═══════════════════════════════════════════════════════════╣
-║  If it has wheels and a computer, K.A.S.H. can diagnose  ║
-║  it. Cars, trucks, motorcycles, boats, tractors, forklifts║
-║  golf carts, snowmobiles, EVs, construction equipment —  ║
-║  every protocol, every make, every model.                 ║
+║  Universal Vehicle Diagnostic Platform                    ║
+║  Cars · Trucks · Motorcycles · Boats · Tractors           ║
+║  Forklifts · Golf Carts · Snowmobiles · EVs · RVs        ║
 ╠═══════════════════════════════════════════════════════════╣
-║  Usage:                                                   ║
-║    python kash_diagnostics.py --coverage    Full DB dump  ║
-║    python kash_diagnostics.py --dtc P0420   DTC lookup    ║
+║  Web UI:    http://localhost:{port:<5}                       ║
+║  Serial:    {'pyserial installed' if _SERIAL_OK else 'pyserial NOT installed (pip install pyserial)'}             ║
+║  CAN Bus:   {'python-can installed' if _CAN_OK else 'python-can NOT installed (pip install python-can)'}           ║
+║  Protocols: {len(Protocol)}                                       ║
+║  DTCs:      {len(GENERIC_DTCS)} generic + {len(J1939_SPNS)} J1939 SPNs                ║
 ╚═══════════════════════════════════════════════════════════╝
 """)
+
+    log.info("Starting K.A.S.H. Diagnostics v%s on %s:%d", VERSION, host, port)
+    uvicorn.run(app, host=host, port=port, log_level="info")

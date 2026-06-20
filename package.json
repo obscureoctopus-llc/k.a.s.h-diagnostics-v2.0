@@ -1,0 +1,7 @@
+{
+  "name": "kash-diagnostics",
+  "version": "2.0.0",
+  "main": "main.js",
+  "scripts": { "start": "electron ." },
+  "dependencies": { "electron": "^30.5.1" }
+}

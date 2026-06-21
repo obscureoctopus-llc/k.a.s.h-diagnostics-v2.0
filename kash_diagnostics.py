@@ -59,6 +59,7 @@ if __name__ == "__main__":
     engine = DiagnosticEngine()
     print("K.A.S.H. Engine Initialized Successfully.")
 
+"""
 Copyright (c) 2026 ObscureOctopus LLC. All Rights Reserved.
 
 If it has wheels and a computer, K.A.S.H. can diagnose it.
@@ -3072,5 +3073,3 @@ if __name__ == "__main__":
     print("🛰️  STREAM RUNNING: Dash API streaming live on port 5000")
     server = HTTPServer(('0.0.0.0', 5000), DashServer)
     server.serve_forever()
-
-

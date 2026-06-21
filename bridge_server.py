@@ -23,6 +23,7 @@ HARDWARE_NOT_CONNECTED = "NOT_CONNECTED"
 GPIO_PORT = os.getenv('KASH_GPIO_PORT', '/dev/ttyAMA0')
 BAUD_RATE = int(os.getenv('KASH_BAUD_RATE', '9600'))
 HTTP_PORT = int(os.getenv('KASH_BRIDGE_PORT', '5000'))
+DISCONNECTED_POLL_INTERVAL = 0.25
 
 
 def _get_reconnect_interval() -> float:
@@ -30,9 +31,7 @@ def _get_reconnect_interval() -> float:
     try:
         return float(raw_value)
     except ValueError as exc:
-        raise ValueError(
-            f"Invalid KASH_RECONNECT_INTERVAL value '{raw_value}'; expected a numeric value."
-        ) from exc
+        raise ValueError("KASH_RECONNECT_INTERVAL must be a numeric value.") from exc
 
 
 RECONNECT_INTERVAL = _get_reconnect_interval()
@@ -109,7 +108,7 @@ class HardwareBridge:
                 if not self.ser or not self.ser.is_open:
                     if self._should_retry_connect():
                         self._connect()
-                    time.sleep(0.25)
+                    time.sleep(DISCONNECTED_POLL_INTERVAL)
                     continue
 
                 if self.ser.in_waiting <= 0:

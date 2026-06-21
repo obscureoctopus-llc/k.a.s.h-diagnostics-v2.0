@@ -52,7 +52,7 @@ class HardwareBridge:
 
     def __init__(self):
         self.ser = None
-        self._state_lock = threading.Lock()
+        self._latest_data_lock = threading.Lock()
         self.latest_data = {
             "status": "NOT_CONNECTED",
             "timestamp": datetime.now().isoformat(),
@@ -64,7 +64,7 @@ class HardwareBridge:
         self._connect()
 
     def _set_not_connected(self, reason: str):
-        with self._state_lock:
+        with self._latest_data_lock:
             self.latest_data.update({
                 "status": "NOT_CONNECTED",
                 "timestamp": datetime.now().isoformat(),
@@ -86,7 +86,7 @@ class HardwareBridge:
                 parity=serial.PARITY_NONE,
                 stopbits=serial.STOPBITS_ONE,
             )
-            with self._state_lock:
+            with self._latest_data_lock:
                 self.ser = serial_conn
                 self.latest_data.update({
                     "status": "KASH READY",
@@ -121,7 +121,7 @@ class HardwareBridge:
                     continue
 
                 log.debug("📥 RX: %s", line)
-                with self._state_lock:
+                with self._latest_data_lock:
                     self.latest_data.update({
                         "status": "KASH READY",
                         "timestamp": datetime.now().isoformat(),
@@ -151,7 +151,7 @@ class HardwareBridge:
 
     def get_status(self) -> dict:
         """Return current hardware status."""
-        with self._state_lock:
+        with self._latest_data_lock:
             return self.latest_data.copy()
 
     def disconnect(self):

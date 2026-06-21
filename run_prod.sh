@@ -31,8 +31,9 @@ stop_service() {
 
 start_service() {
     local pid_file="$1"
-    shift
-    nohup "$@" &
+    local log_file="$2"
+    shift 2
+    nohup "$@" > "$log_file" 2>&1 &
     echo $! > "$pid_file"
 }
 
@@ -40,9 +41,9 @@ stop_service "$PID_DIR/backend_api.pid"
 stop_service "$PID_DIR/bridge_server.pid"
 stop_service "$PID_DIR/web_dashboard.pid"
 
-start_service "$PID_DIR/backend_api.pid" python3 "$SCRIPT_DIR/backend_api.py" > "$SCRIPT_DIR/logs/backend_api.log" 2>&1
-start_service "$PID_DIR/bridge_server.pid" python3 "$SCRIPT_DIR/bridge_server.py" > "$SCRIPT_DIR/logs/bridge_server.log" 2>&1
-start_service "$PID_DIR/web_dashboard.pid" python3 -m http.server 8080 --directory "$SCRIPT_DIR" > "$SCRIPT_DIR/logs/web_dashboard.log" 2>&1
+start_service "$PID_DIR/backend_api.pid" "$SCRIPT_DIR/logs/backend_api.log" python3 "$SCRIPT_DIR/backend_api.py"
+start_service "$PID_DIR/bridge_server.pid" "$SCRIPT_DIR/logs/bridge_server.log" python3 "$SCRIPT_DIR/bridge_server.py"
+start_service "$PID_DIR/web_dashboard.pid" "$SCRIPT_DIR/logs/web_dashboard.log" python3 -m http.server 8080 --directory "$SCRIPT_DIR"
 
 echo "K.A.S.H. production services started."
 echo "Backend API:   http://localhost:5001"

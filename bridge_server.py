@@ -21,7 +21,19 @@ VERSION = "3.0"
 GPIO_PORT = os.getenv('KASH_GPIO_PORT', '/dev/ttyAMA0')
 BAUD_RATE = int(os.getenv('KASH_BAUD_RATE', '9600'))
 HTTP_PORT = int(os.getenv('KASH_BRIDGE_PORT', '5000'))
-RECONNECT_INTERVAL = float(os.getenv('KASH_RECONNECT_INTERVAL', '5'))
+
+
+def _get_reconnect_interval() -> float:
+    raw_value = os.getenv('KASH_RECONNECT_INTERVAL', '5')
+    try:
+        return float(raw_value)
+    except ValueError as exc:
+        raise ValueError(
+            f"Invalid KASH_RECONNECT_INTERVAL value '{raw_value}'; expected a numeric value."
+        ) from exc
+
+
+RECONNECT_INTERVAL = _get_reconnect_interval()
 
 logging.basicConfig(
     level=logging.INFO,
@@ -39,7 +51,7 @@ class HardwareBridge:
 
     def __init__(self):
         self.ser = None
-        self._lock = threading.Lock()
+        self._state_lock = threading.Lock()
         self.latest_data = {
             "status": "NOT_CONNECTED",
             "timestamp": datetime.now().isoformat(),
@@ -51,7 +63,7 @@ class HardwareBridge:
         self._connect()
 
     def _set_not_connected(self, reason: str):
-        with self._lock:
+        with self._state_lock:
             self.latest_data.update({
                 "status": "NOT_CONNECTED",
                 "timestamp": datetime.now().isoformat(),
@@ -73,7 +85,7 @@ class HardwareBridge:
                 parity=serial.PARITY_NONE,
                 stopbits=serial.STOPBITS_ONE,
             )
-            with self._lock:
+            with self._state_lock:
                 self.ser = serial_conn
                 self.latest_data.update({
                     "status": "KASH READY",
@@ -108,7 +120,7 @@ class HardwareBridge:
                     continue
 
                 log.debug("📥 RX: %s", line)
-                with self._lock:
+                with self._state_lock:
                     self.latest_data.update({
                         "status": "KASH READY",
                         "timestamp": datetime.now().isoformat(),
@@ -138,7 +150,7 @@ class HardwareBridge:
 
     def get_status(self) -> dict:
         """Return current hardware status."""
-        with self._lock:
+        with self._state_lock:
             return self.latest_data.copy()
 
     def disconnect(self):

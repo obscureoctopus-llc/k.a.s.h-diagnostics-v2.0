@@ -5,13 +5,17 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$SCRIPT_DIR"
 
 mkdir -p "$SCRIPT_DIR/logs"
+[ -d "$SCRIPT_DIR/logs" ] || {
+    echo "Failed to create log directory: $SCRIPT_DIR/logs" >&2
+    exit 1
+}
 
-pkill -f "python3 bridge_server.py" || true
-pkill -f "python3 backend_api.py" || true
-pkill -f "python3 -m http.server 8080" || true
+pkill -f "python3 $SCRIPT_DIR/bridge_server.py" || true
+pkill -f "python3 $SCRIPT_DIR/backend_api.py" || true
+pkill -f "python3 -m http.server 8080 --directory $SCRIPT_DIR" || true
 
-nohup python3 backend_api.py > "$SCRIPT_DIR/logs/backend_api.log" 2>&1 &
-nohup python3 bridge_server.py > "$SCRIPT_DIR/logs/bridge_server.log" 2>&1 &
+nohup python3 "$SCRIPT_DIR/backend_api.py" > "$SCRIPT_DIR/logs/backend_api.log" 2>&1 &
+nohup python3 "$SCRIPT_DIR/bridge_server.py" > "$SCRIPT_DIR/logs/bridge_server.log" 2>&1 &
 nohup python3 -m http.server 8080 --directory "$SCRIPT_DIR" > "$SCRIPT_DIR/logs/web_dashboard.log" 2>&1 &
 
 echo "K.A.S.H. production services started."

@@ -2,7 +2,7 @@
 """
 K.A.S.H. RS-485 HARDWARE BRIDGE (PRODUCTION)
 Strict mode: NO simulation/fake data.
-If hardware is unavailable => NOT_CONNECTED.
+If hardware is unavailable, status reports NOT_CONNECTED.
 """
 
 import json

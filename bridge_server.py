@@ -1,32 +1,34 @@
 #!/usr/bin/env python3
 """
-K.A.S.H. RS-485 HARDWARE BRIDGE
-Listens on GPIO serial port, streams vehicle data via HTTP JSON API.
-Provides /api/live endpoint for dashboard.
+K.A.S.H. RS-485 HARDWARE BRIDGE (PRODUCTION)
+Strict mode: NO simulation/fake data.
+If hardware is unavailable => NOT_CONNECTED.
 """
 
-import os
 import json
-import time
-import serial
 import logging
-from http.server import HTTPServer, BaseHTTPRequestHandler
-from datetime import datetime
+import os
 import threading
+import time
+from datetime import datetime
+from http.server import BaseHTTPRequestHandler, HTTPServer
 
-# Configuration
+import serial
+
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 GPIO_PORT = os.getenv('KASH_GPIO_PORT', '/dev/ttyAMA0')
 BAUD_RATE = int(os.getenv('KASH_BAUD_RATE', '9600'))
 HTTP_PORT = int(os.getenv('KASH_BRIDGE_PORT', '5000'))
+RECONNECT_INTERVAL = float(os.getenv('KASH_RECONNECT_INTERVAL', '5'))
 
-# Setup logging
 logging.basicConfig(
     level=logging.INFO,
     format='[%(asctime)s] %(name)s — %(levelname)s: %(message)s',
     handlers=[
-        logging.FileHandler('kash_bridge.log'),
-        logging.StreamHandler()
-    ]
+        logging.FileHandler(os.path.join(BASE_DIR, 'kash_bridge.log')),
+        logging.StreamHandler(),
+    ],
 )
 log = logging.getLogger('kash.bridge')
 
@@ -36,85 +38,121 @@ class HardwareBridge:
 
     def __init__(self):
         self.ser = None
+        self._lock = threading.Lock()
         self.latest_data = {
-            "status": "INITIALIZING",
+            "status": "NOT_CONNECTED",
             "timestamp": datetime.now().isoformat(),
             "raw_frame": "",
-            "hardware_state": "disconnected"
+            "hardware_state": "not_connected",
+            "frame_type": "UNKNOWN",
         }
+        self._last_connect_attempt = 0.0
         self._connect()
+
+    def _set_not_connected(self, reason: str):
+        with self._lock:
+            self.latest_data.update({
+                "status": "NOT_CONNECTED",
+                "timestamp": datetime.now().isoformat(),
+                "raw_frame": "",
+                "hardware_state": "not_connected",
+                "frame_type": "UNKNOWN",
+            })
+        log.warning("Hardware not connected: %s", reason)
 
     def _connect(self):
         """Attempt to open serial connection."""
+        self._last_connect_attempt = time.time()
         try:
-            self.ser = serial.Serial(
+            serial_conn = serial.Serial(
                 GPIO_PORT,
                 BAUD_RATE,
                 timeout=1,
                 bytesize=serial.EIGHTBITS,
                 parity=serial.PARITY_NONE,
-                stopbits=serial.STOPBITS_ONE
+                stopbits=serial.STOPBITS_ONE,
             )
-            log.info(f"✓ Serial port connected: {GPIO_PORT} @ {BAUD_RATE} baud")
-            self.latest_data["hardware_state"] = "connected"
-            self.latest_data["status"] = "KASH READY"
-        except Exception as e:
-            log.warning(f"⚠️  Could not open {GPIO_PORT}: {e}")
-            log.info("    (Hardware optional — API will simulate data)")
-            self.latest_data["hardware_state"] = "not_available"
-            self.latest_data["status"] = "SIMULATION_MODE"
+            with self._lock:
+                self.ser = serial_conn
+                self.latest_data.update({
+                    "status": "KASH READY",
+                    "timestamp": datetime.now().isoformat(),
+                    "hardware_state": "connected",
+                })
+            log.info("✓ Serial port connected: %s @ %s baud", GPIO_PORT, BAUD_RATE)
+        except Exception as exc:
             self.ser = None
+            self._set_not_connected(str(exc))
+
+    def _should_retry_connect(self) -> bool:
+        return (time.time() - self._last_connect_attempt) >= RECONNECT_INTERVAL
 
     def read_loop(self):
         """Main thread: read serial data and update latest_data."""
         while True:
             try:
-                if self.ser and self.ser.is_open and self.ser.in_waiting > 0:
-                    line = self.ser.readline().decode('utf-8', errors='ignore').strip()
-                    if line:
-                        log.debug(f"📥 RX: {line}")
-                        self.latest_data = {
-                            "status": "KASH READY",
-                            "timestamp": datetime.now().isoformat(),
-                            "raw_frame": line,
-                            "hardware_state": "connected",
-                            "frame_type": self._detect_frame_type(line)
-                        }
-            except Exception as e:
-                log.error(f"Serial read error: {e}")
-            time.sleep(0.01)
+                if not self.ser or not self.ser.is_open:
+                    if self._should_retry_connect():
+                        self._connect()
+                    time.sleep(0.25)
+                    continue
+
+                if self.ser.in_waiting <= 0:
+                    time.sleep(0.01)
+                    continue
+
+                line = self.ser.readline().decode('utf-8', errors='ignore').strip()
+                if not line:
+                    time.sleep(0.01)
+                    continue
+
+                log.debug("📥 RX: %s", line)
+                with self._lock:
+                    self.latest_data.update({
+                        "status": "KASH READY",
+                        "timestamp": datetime.now().isoformat(),
+                        "raw_frame": line,
+                        "hardware_state": "connected",
+                        "frame_type": self._detect_frame_type(line),
+                    })
+            except Exception as exc:
+                log.error("Serial read error: %s", exc)
+                self.disconnect()
+                self._set_not_connected(str(exc))
+                time.sleep(0.5)
 
     def _detect_frame_type(self, frame: str) -> str:
         """Detect vehicle protocol from raw frame."""
         if frame.startswith('29'):
             return "CAN_29bit"
-        elif frame.startswith('11'):
+        if frame.startswith('11'):
             return "CAN_11bit"
-        elif frame.startswith('J1939'):
+        if frame.startswith('J1939'):
             return "J1939"
-        elif frame.startswith('KDS'):
+        if frame.startswith('KDS'):
             return "KAWASAKI_KDS"
-        elif frame.startswith('ISO'):
+        if frame.startswith('ISO'):
             return "ISO14230_KWP"
-        else:
-            return "UNKNOWN"
+        return "UNKNOWN"
 
     def get_status(self) -> dict:
         """Return current hardware status."""
-        return self.latest_data.copy()
+        with self._lock:
+            return self.latest_data.copy()
 
     def disconnect(self):
         """Close serial connection gracefully."""
         if self.ser and self.ser.is_open:
             self.ser.close()
             log.info("Serial port closed.")
+        self.ser = None
 
 
 class BridgeHTTPHandler(BaseHTTPRequestHandler):
     """HTTP API for bridge data."""
 
     def do_GET(self):
-        """Serve /api/live endpoint."""
+        """Serve bridge endpoints."""
         if self.path == '/api/live':
             data = bridge.get_status()
             self.send_response(200)
@@ -122,13 +160,15 @@ class BridgeHTTPHandler(BaseHTTPRequestHandler):
             self.send_header('Access-Control-Allow-Origin', '*')
             self.end_headers()
             self.wfile.write(json.dumps(data).encode('utf-8'))
-        elif self.path == '/api/bridge/status':
+            return
+
+        if self.path == '/api/bridge/status':
             data = {
                 "service": "K.A.S.H. RS-485 Bridge",
-                "version": "2.0",
+                "version": "3.0",
                 "status": "running",
                 "timestamp": datetime.now().isoformat(),
-                "hardware": bridge.latest_data["hardware_state"],
+                "hardware": bridge.get_status()["hardware_state"],
                 "gpio_port": GPIO_PORT,
                 "baud_rate": BAUD_RATE,
                 "http_port": HTTP_PORT,
@@ -138,43 +178,42 @@ class BridgeHTTPHandler(BaseHTTPRequestHandler):
             self.send_header('Access-Control-Allow-Origin', '*')
             self.end_headers()
             self.wfile.write(json.dumps(data).encode('utf-8'))
-        else:
-            self.send_response(404)
-            self.send_header('Content-Type', 'application/json')
-            self.end_headers()
-            self.wfile.write(json.dumps({
-                "error": "Not found",
-                "available": ["GET /api/live", "GET /api/bridge/status"]
-            }).encode('utf-8'))
+            return
+
+        self.send_response(404)
+        self.send_header('Content-Type', 'application/json')
+        self.end_headers()
+        self.wfile.write(json.dumps({
+            "error": "Not found",
+            "available": ["GET /api/live", "GET /api/bridge/status"],
+        }).encode('utf-8'))
 
     def log_message(self, format, *args):
         """Custom logging."""
-        log.info(f"{self.client_address[0]} — {format % args}")
+        log.info("%s — %s", self.client_address[0], format % args)
 
 
 if __name__ == '__main__':
-    log.info("="*60)
-    log.info("K.A.S.H. RS-485 HARDWARE BRIDGE v2.0")
-    log.info("="*60)
-    
-    # Initialize bridge
+    log.info("=" * 60)
+    log.info("K.A.S.H. RS-485 HARDWARE BRIDGE v3.0")
+    log.info("=" * 60)
+
     bridge = HardwareBridge()
-    
-    # Start serial read thread
+
     serial_thread = threading.Thread(target=bridge.read_loop, daemon=True)
     serial_thread.start()
     log.info("✓ Serial listener thread started.")
-    
-    # Start HTTP server
+
     server = HTTPServer(('0.0.0.0', HTTP_PORT), BridgeHTTPHandler)
-    log.info(f"\n📡 Bridge API listening on http://localhost:{HTTP_PORT}")
-    log.info(f"   Hardware: {bridge.latest_data['hardware_state']}")
-    log.info(f"   Status: {bridge.latest_data['status']}\n")
-    
+    log.info("📡 Bridge API listening on http://localhost:%s", HTTP_PORT)
+    log.info("   Hardware: %s", bridge.get_status()["hardware_state"])
+    log.info("   Status: %s", bridge.get_status()["status"])
+
     try:
         server.serve_forever()
     except KeyboardInterrupt:
-        log.info("\n🛑 Shutting down...")
+        log.info("🛑 Shutting down...")
+    finally:
         bridge.disconnect()
         server.shutdown()
         log.info("✓ Bridge stopped.")

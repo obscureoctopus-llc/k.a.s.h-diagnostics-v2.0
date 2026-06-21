@@ -18,6 +18,8 @@ import serial
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 VERSION = "3.0"
+HARDWARE_CONNECTED = "CONNECTED"
+HARDWARE_NOT_CONNECTED = "NOT_CONNECTED"
 GPIO_PORT = os.getenv('KASH_GPIO_PORT', '/dev/ttyAMA0')
 BAUD_RATE = int(os.getenv('KASH_BAUD_RATE', '9600'))
 HTTP_PORT = int(os.getenv('KASH_BRIDGE_PORT', '5000'))
@@ -56,7 +58,7 @@ class HardwareBridge:
             "status": "NOT_CONNECTED",
             "timestamp": datetime.now().isoformat(),
             "raw_frame": "",
-            "hardware_state": "not_connected",
+            "hardware_state": HARDWARE_NOT_CONNECTED,
             "frame_type": "UNKNOWN",
         }
         self._last_connect_attempt = 0.0
@@ -68,7 +70,7 @@ class HardwareBridge:
                 "status": "NOT_CONNECTED",
                 "timestamp": datetime.now().isoformat(),
                 "raw_frame": "",
-                "hardware_state": "not_connected",
+                "hardware_state": HARDWARE_NOT_CONNECTED,
                 "frame_type": "UNKNOWN",
             })
         log.warning("Hardware not connected: %s", reason)
@@ -90,7 +92,7 @@ class HardwareBridge:
                 self.latest_data.update({
                     "status": "KASH READY",
                     "timestamp": datetime.now().isoformat(),
-                    "hardware_state": "connected",
+                    "hardware_state": HARDWARE_CONNECTED,
                 })
             log.info("✓ Serial port connected: %s @ %s baud", GPIO_PORT, BAUD_RATE)
         except Exception as exc:
@@ -125,7 +127,7 @@ class HardwareBridge:
                         "status": "KASH READY",
                         "timestamp": datetime.now().isoformat(),
                         "raw_frame": line,
-                        "hardware_state": "connected",
+                        "hardware_state": HARDWARE_CONNECTED,
                         "frame_type": self._detect_frame_type(line),
                     })
             except Exception as exc:

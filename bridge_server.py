@@ -17,6 +17,7 @@ import serial
 
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+VERSION = "3.0"
 GPIO_PORT = os.getenv('KASH_GPIO_PORT', '/dev/ttyAMA0')
 BAUD_RATE = int(os.getenv('KASH_BAUD_RATE', '9600'))
 HTTP_PORT = int(os.getenv('KASH_BRIDGE_PORT', '5000'))
@@ -165,7 +166,7 @@ class BridgeHTTPHandler(BaseHTTPRequestHandler):
         if self.path == '/api/bridge/status':
             data = {
                 "service": "K.A.S.H. RS-485 Bridge",
-                "version": "3.0",
+                "version": VERSION,
                 "status": "running",
                 "timestamp": datetime.now().isoformat(),
                 "hardware": bridge.get_status()["hardware_state"],
@@ -195,7 +196,7 @@ class BridgeHTTPHandler(BaseHTTPRequestHandler):
 
 if __name__ == '__main__':
     log.info("=" * 60)
-    log.info("K.A.S.H. RS-485 HARDWARE BRIDGE v3.0")
+    log.info("K.A.S.H. RS-485 HARDWARE BRIDGE v%s", VERSION)
     log.info("=" * 60)
 
     bridge = HardwareBridge()

@@ -23,7 +23,9 @@ stop_service() {
         local pid
         pid="$(cat "$pid_file")"
         if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
-            kill "$pid" 2>/dev/null || true
+            if ! kill "$pid" 2>/dev/null; then
+                echo "Warning: failed to stop process $pid from $pid_file" >&2
+            fi
         fi
         rm -f "$pid_file"
     fi

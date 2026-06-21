@@ -76,7 +76,6 @@ class HardwareBridge:
 
     def _connect(self):
         """Attempt to open serial connection."""
-        self._last_connect_attempt = time.time()
         try:
             serial_conn = serial.Serial(
                 GPIO_PORT,
@@ -95,6 +94,7 @@ class HardwareBridge:
                 })
             log.info("✓ Serial port connected: %s @ %s baud", GPIO_PORT, BAUD_RATE)
         except Exception as exc:
+            self._last_connect_attempt = time.time()
             self.ser = None
             self._set_not_connected(str(exc))
 
@@ -105,17 +105,20 @@ class HardwareBridge:
         """Main thread: read serial data and update latest_data."""
         while True:
             try:
-                if not self.ser or not self.ser.is_open:
+                with self._latest_data_lock:
+                    serial_conn = self.ser
+
+                if not serial_conn or not serial_conn.is_open:
                     if self._should_retry_connect():
                         self._connect()
                     time.sleep(DISCONNECTED_POLL_INTERVAL)
                     continue
 
-                if self.ser.in_waiting <= 0:
+                if serial_conn.in_waiting <= 0:
                     time.sleep(0.01)
                     continue
 
-                line = self.ser.readline().decode('utf-8', errors='ignore').strip()
+                line = serial_conn.readline().decode('utf-8', errors='ignore').strip()
                 if not line:
                     time.sleep(0.01)
                     continue
@@ -156,10 +159,12 @@ class HardwareBridge:
 
     def disconnect(self):
         """Close serial connection gracefully."""
-        if self.ser and self.ser.is_open:
-            self.ser.close()
+        with self._latest_data_lock:
+            serial_conn = self.ser
+            self.ser = None
+        if serial_conn and serial_conn.is_open:
+            serial_conn.close()
             log.info("Serial port closed.")
-        self.ser = None
 
 
 class BridgeHTTPHandler(BaseHTTPRequestHandler):

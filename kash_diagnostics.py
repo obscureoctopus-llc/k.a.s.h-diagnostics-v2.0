@@ -59,54 +59,6 @@ if __name__ == "__main__":
     engine = DiagnosticEngine()
     print("K.A.S.H. Engine Initialized Successfully.")
 
-Copyright (c) 2026 ObscureOctopus LLC. All Rights Reserved.
-
-If it has wheels and a computer, K.A.S.H. can diagnose it.
-
-SUPPORTED VEHICLE CATEGORIES:
-  ● Cars & Light Trucks      OBD-II (1996+), OBD-I (1980–1995)
-  ● Heavy-Duty Trucks        SAE J1939 / J1708-J1587 (Class 4–8)
-  ● Motorcycles              KDS, HDS, YDS, SDS, ESPFI, GS-911, DDS
-  ● ATVs / UTVs / SxS        Polaris, Can-Am, Honda, Yamaha, Kawasaki, CF Moto
-  ● Marine / Boats            NMEA 2000, SmartCraft, Yamaha CL, Suzuki DF
-  ● Agricultural Equipment    ISOBUS (ISO 11783), J1939-AG
-  ● Construction Equipment    CAT ET, JD Advisor, Bobcat, Kubota, Komatsu
-  ● Snowmobiles              BRP BUDS, Polaris, Arctic Cat, Yamaha
-  ● Golf Carts               Club Car, EZ-GO, Yamaha, Star EV
-  ● Forklifts                Toyota, Hyster-Yale, Crown, Raymond
-  ● Lawn / Zero-Turn          Kohler, Briggs, Kawasaki FX/FR
-  ● Electric Vehicles         Tesla (CAN), Rivian, Leaf, Bolt, Zero SR
-  ● RVs / Motorhomes          Chassis (Ford/Chevy/Freightliner) + Coach
-
-PROTOCOLS:
-  CAN 2.0A/B     11-bit & 29-bit identifiers, 250/500/1000 kbps
-  ISO 15765-4    OBD-II over CAN (all 2008+ vehicles)
-  ISO 14229      UDS — Unified Diagnostic Services
-  SAE J1979      OBD-II standard services (modes 01–0A)
-  SAE J1939      Heavy-duty CAN (29-bit, 250 kbps)
-  SAE J1708/1587 Legacy HD serial (RS-485, 9600 baud)
-  ISO 9141-2     K-Line OBD-II (imports 1996–2005)
-  ISO 14230      KWP2000 — Key Word Protocol 2000
-  SAE J1850 VPW  Variable Pulse Width (GM 1996–2006)
-  SAE J1850 PWM  Pulse Width Modulation (Ford 1996–2005)
-  GM ALDL        Assembly Line Diagnostic Link (160/8192 baud)
-  Ford EEC-III/IV Electronic Engine Control
-  Chrysler SCI   Serial Communications Interface (7812.5 baud)
-  Kawasaki KDS   K-Line Diagnostic System (10400 baud)
-  Honda HDS      Honda Diagnostic System (K-Line)
-  Yamaha YDS     Yamaha Diagnostic System (K-Line)
-  Suzuki SDS     Suzuki Diagnostic System (K-Line)
-  Harley ESPFI   Electronic Sequential Port Fuel Injection
-  BMW MSA/BMS    Motorrad diagnostic (K-Line → CAN)
-  Ducati DDS     Ducati Diagnostic System
-  NMEA 2000      Marine CAN (250 kbps, 29-bit)
-  ISOBUS         ISO 11783 agricultural CAN
-  Polaris RIDE   Proprietary CAN diagnostic
-  BRP BUDS       Bombardier Universal Diagnostic System
-
-Hardware interface: K.A.S.H. unit (RPi + MCP2515 CAN + K-Line via L9637)
-"""
-
 import json
 import logging
 import struct
@@ -3072,5 +3024,3 @@ if __name__ == "__main__":
     print("🛰️  STREAM RUNNING: Dash API streaming live on port 5000")
     server = HTTPServer(('0.0.0.0', 5000), DashServer)
     server.serve_forever()
-
-

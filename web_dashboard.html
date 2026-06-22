@@ -285,8 +285,8 @@
                 bridgeEl.innerHTML = '✓ Online';
                 bridgeEl.className = 'status-value ok';
                 const hwEl = document.getElementById('hardware-status');
-                hwEl.innerHTML = bridge.hardware === 'connected' ? '✓ Connected' : '⚠ Not Available';
-                hwEl.className = `status-value ${bridge.hardware === 'connected' ? 'ok' : 'warning'}`;
+                hwEl.innerHTML = bridge.hardware === 'CONNECTED' ? '✓ Connected' : '✗ NOT_CONNECTED';
+                hwEl.className = `status-value ${bridge.hardware === 'CONNECTED' ? 'ok' : 'error'}`;
             } else {
                 bridgeEl.innerHTML = '✗ Offline';
                 bridgeEl.className = 'status-value error';

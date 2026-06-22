@@ -54,9 +54,9 @@ KASH_Diagnostics.html  ← Frontend: served by backend at localhost:8000
 
 ## Hardware
 
-Designed for the K.A.S.H. unit (Raspberry Pi 5 + MCP2515 CAN + L9637 K-Line), but works with any supported adapter:
+Works with any supported adapter:
 
-- **CAN**: MCP2515 SPI, USB CAN adapters (python-can compatible)
+- **CAN**: USB CAN adapters (python-can compatible)
 - **Serial/K-Line**: USB-to-serial, /dev/ttyAMA0, COM ports
 - **OBD-II**: Any adapter that exposes serial or CAN interface
 

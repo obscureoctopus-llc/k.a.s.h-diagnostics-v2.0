@@ -254,7 +254,7 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(body),
                 });
-                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
                 return await response.json();
             } catch (error) {
                 console.error('POST error:', error);

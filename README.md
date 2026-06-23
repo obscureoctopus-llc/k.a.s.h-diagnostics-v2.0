@@ -34,7 +34,7 @@ chmod +x start.sh
 
 ### Manual
 ```bash
-cd /path/to/k.a.s.h-diagnostics-v2.0
+cd /path/to/repository
 pip install -r requirements.txt
 python kash_diagnostics.py
 ```

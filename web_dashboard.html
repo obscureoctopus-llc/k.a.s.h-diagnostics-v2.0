@@ -391,7 +391,7 @@ Severity:
                     log('✓ Scan initiated');
                     return;
                 }
-                const reason = `unexpected status: '${data?.status}', expected 'scan_initiated'`;
+                const reason = `unexpected scan status: '${data?.status}' (expected API success status 'scan_initiated')`;
                 updateResults(`❌ Unable to start diagnostic scan: ${reason}`);
                 log(`✗ Scan failed: ${reason}`);
             } catch (error) {

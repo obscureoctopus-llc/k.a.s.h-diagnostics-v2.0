@@ -34,7 +34,7 @@ chmod +x start.sh
 
 ### Manual
 ```bash
-cd /path/to/repository
+cd ~/k.a.s.h-diagnostics-v2.0  # or your local clone path
 pip install -r requirements.txt
 python kash_diagnostics.py
 ```

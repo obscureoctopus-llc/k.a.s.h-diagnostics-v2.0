@@ -247,6 +247,20 @@
             }
         }
 
+        async function postJSON(url, body = {}) {
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body),
+            });
+            if (!response.ok) {
+                const errorBody = await response.text();
+                const suffix = errorBody ? ` — ${errorBody}` : '';
+                throw new Error(`HTTP ${response.status}: ${response.statusText}${suffix}`);
+            }
+            return await response.json();
+        }
+
         function updateResults(text, title = 'Results') {
             document.getElementById('results-text').innerText = text;
         }
@@ -370,8 +384,22 @@ Severity:
 
         async function runDiagnosticScan() {
             log('▶ Initiating full diagnostic scan...');
-            updateResults('Diagnostic scan would initiate hardware connection here.\n\n(Connect to CAN/serial for real vehicle scan)');
-            log('✓ Scan initiated');
+            try {
+                const data = await postJSON(`${BACKEND_URL}/api/scan`);
+                if (data && data.status === 'scan_initiated') {
+                    updateResults(JSON.stringify(data, null, 2));
+                    log('✓ Scan initiated');
+                    return;
+                }
+                const reason = `unexpected scan status: '${data?.status}' (expected API success status 'scan_initiated')`;
+                updateResults(`❌ Unable to start diagnostic scan: ${reason}`);
+                log(`✗ Scan failed: ${reason}`);
+            } catch (error) {
+                console.error('POST error:', error);
+                const reason = error?.message || 'request failed';
+                updateResults(`❌ Unable to start diagnostic scan: ${reason}`);
+                log(`✗ Scan failed: ${reason}`);
+            }
         }
 
         // ─────────────────────────────────────────────────────────────

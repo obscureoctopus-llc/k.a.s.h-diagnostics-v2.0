@@ -391,12 +391,12 @@ Severity:
                     log('✓ Scan initiated');
                     return;
                 }
-                const reason = "expected response with status='scan_initiated'";
+                const reason = `unexpected status: '${data?.status}', expected 'scan_initiated'`;
                 updateResults(`❌ Unable to start diagnostic scan: ${reason}`);
                 log(`✗ Scan failed: ${reason}`);
             } catch (error) {
                 console.error('POST error:', error);
-                const reason = error?.message || 'backend unavailable';
+                const reason = error?.message || 'request failed';
                 updateResults(`❌ Unable to start diagnostic scan: ${reason}`);
                 log(`✗ Scan failed: ${reason}`);
             }

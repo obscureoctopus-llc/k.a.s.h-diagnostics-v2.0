@@ -248,23 +248,17 @@
         }
 
         async function postJSON(url, body = {}) {
-            try {
-                const response = await fetch(url, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(body),
-                });
-                if (!response.ok) {
-                    const errorBody = await response.text();
-                    const suffix = errorBody ? ` — ${errorBody}` : '';
-                    throw new Error(`HTTP ${response.status}: ${response.statusText}${suffix}`);
-                }
-                return await response.json();
-            } catch (error) {
-                console.error('POST error:', error);
-                const errorType = error instanceof TypeError ? 'network' : 'request';
-                return { errorType, error: error.message || 'Request failed' };
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body),
+            });
+            if (!response.ok) {
+                const errorBody = await response.text();
+                const suffix = errorBody ? ` — ${errorBody}` : '';
+                throw new Error(`HTTP ${response.status}: ${response.statusText}${suffix}`);
             }
+            return await response.json();
         }
 
         function updateResults(text, title = 'Results') {
@@ -390,17 +384,22 @@ Severity:
 
         async function runDiagnosticScan() {
             log('▶ Initiating full diagnostic scan...');
-            const data = await postJSON(`${BACKEND_URL}/api/scan`);
-            if (data && data.status === 'scan_initiated') {
-                updateResults(JSON.stringify(data, null, 2));
-                log('✓ Scan initiated');
-                return;
+            try {
+                const data = await postJSON(`${BACKEND_URL}/api/scan`);
+                if (data && data.status === 'scan_initiated') {
+                    updateResults(JSON.stringify(data, null, 2));
+                    log('✓ Scan initiated');
+                    return;
+                }
+                const reason = "expected response with status='scan_initiated'";
+                updateResults(`❌ Unable to start diagnostic scan: ${reason}`);
+                log(`✗ Scan failed: ${reason}`);
+            } catch (error) {
+                console.error('POST error:', error);
+                const reason = error?.message || 'backend unavailable';
+                updateResults(`❌ Unable to start diagnostic scan: ${reason}`);
+                log(`✗ Scan failed: ${reason}`);
             }
-            const reason = data
-                ? (data.error || "expected response with status='scan_initiated'")
-                : 'backend unavailable';
-            updateResults(`❌ Unable to start diagnostic scan: ${reason}`);
-            log(`✗ Scan failed: ${reason}`);
         }
 
         // ─────────────────────────────────────────────────────────────

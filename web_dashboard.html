@@ -390,12 +390,12 @@ Severity:
         async function runDiagnosticScan() {
             log('▶ Initiating full diagnostic scan...');
             const data = await postJSON(`${BACKEND_URL}/api/scan`);
-            if (data && !data.error) {
+            if (data && data.status === 'scan_initiated') {
                 updateResults(JSON.stringify(data, null, 2));
                 log('✓ Scan initiated');
                 return;
             }
-            const reason = data ? (data.error || 'backend returned invalid response format') : 'backend unavailable';
+            const reason = data ? (data.error || 'unexpected response structure') : 'backend unavailable';
             updateResults(`❌ Unable to start diagnostic scan: ${reason}`);
             log(`✗ Scan failed: ${reason}`);
         }

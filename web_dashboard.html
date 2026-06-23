@@ -391,7 +391,7 @@ Severity:
                 log('✓ Scan initiated');
                 return;
             }
-            const reason = data?.error || 'backend unavailable';
+            const reason = data ? (data.error || 'unexpected response format') : 'backend unavailable';
             updateResults(`❌ Unable to start diagnostic scan: ${reason}`);
             log(`✗ Scan failed: ${reason}`);
         }

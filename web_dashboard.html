@@ -247,6 +247,21 @@
             }
         }
 
+        async function postJSON(url, body = {}) {
+            try {
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body),
+                });
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                return await response.json();
+            } catch (error) {
+                console.error('Post error:', error);
+                return null;
+            }
+        }
+
         function updateResults(text, title = 'Results') {
             document.getElementById('results-text').innerText = text;
         }
@@ -370,8 +385,14 @@ Severity:
 
         async function runDiagnosticScan() {
             log('▶ Initiating full diagnostic scan...');
-            updateResults('Diagnostic scan would initiate hardware connection here.\n\n(Connect to CAN/serial for real vehicle scan)');
-            log('✓ Scan initiated');
+            const data = await postJSON(`${BACKEND_URL}/api/scan`);
+            if (data && !data.error) {
+                updateResults(JSON.stringify(data, null, 2));
+                log('✓ Scan initiated');
+                return;
+            }
+            updateResults('❌ Unable to start diagnostic scan. Verify the backend API is running.');
+            log('✗ Scan failed: backend unavailable');
         }
 
         // ─────────────────────────────────────────────────────────────

@@ -262,7 +262,8 @@
                 return await response.json();
             } catch (error) {
                 console.error('POST error:', error);
-                return { error: error.message || 'Request failed' };
+                const errorType = error instanceof TypeError ? 'network' : 'request';
+                return { errorType, error: error.message || 'Request failed' };
             }
         }
 
@@ -395,7 +396,9 @@ Severity:
                 log('✓ Scan initiated');
                 return;
             }
-            const reason = data ? (data.error || 'unexpected response structure') : 'backend unavailable';
+            const reason = data
+                ? (data.error || "expected response with status='scan_initiated'")
+                : 'backend unavailable';
             updateResults(`❌ Unable to start diagnostic scan: ${reason}`);
             log(`✗ Scan failed: ${reason}`);
         }

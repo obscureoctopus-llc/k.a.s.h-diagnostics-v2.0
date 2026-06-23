@@ -34,7 +34,7 @@ chmod +x start.sh
 
 ### Manual
 ```bash
-cd <file_path>  # replace <file_path> with your cloned repository path
+cd <file_path>  # <file_path> is your <repository_path> (cloned repo root)
 # example: cd ~/k.a.s.h-diagnostics-v2.0
 pip install -r requirements.txt
 python kash_diagnostics.py

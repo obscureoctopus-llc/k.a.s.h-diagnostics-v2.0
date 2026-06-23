@@ -257,8 +257,8 @@
                 if (!response.ok) throw new Error(`HTTP ${response.status}`);
                 return await response.json();
             } catch (error) {
-                console.error('Post error:', error);
-                return null;
+                console.error('POST error:', error);
+                return { error: error.message || 'Request failed' };
             }
         }
 
@@ -391,8 +391,9 @@ Severity:
                 log('✓ Scan initiated');
                 return;
             }
-            updateResults('❌ Unable to start diagnostic scan. Verify the backend API is running.');
-            log('✗ Scan failed: backend unavailable');
+            const reason = data?.error || 'backend unavailable';
+            updateResults(`❌ Unable to start diagnostic scan: ${reason}`);
+            log(`✗ Scan failed: ${reason}`);
         }
 
         // ─────────────────────────────────────────────────────────────

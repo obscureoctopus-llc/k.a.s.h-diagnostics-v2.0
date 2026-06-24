@@ -34,7 +34,7 @@ chmod +x start.sh
 
 ### Raspberry Pi SD Clone Image
 ```bash
-chmod +x create_kde_clone_image.sh
+# chmod +x create_kde_clone_image.sh  # only needed if execute bit is missing
 sudo ./create_kde_clone_image.sh /dev/mmcblk0 kde-kash-arm64
 ```
 This writes `images/kde-kash-arm64.img` and `images/kde-kash-arm64.img.sha256`.

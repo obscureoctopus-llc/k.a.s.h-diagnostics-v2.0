@@ -50,6 +50,7 @@ fi
 mkdir -p images
 OUTPUT_IMAGE="images/${IMAGE_NAME}.img"
 OUTPUT_HASH="${OUTPUT_IMAGE}.sha256"
+DD_BLOCK_SIZE="${DD_BLOCK_SIZE:-4M}"
 
 if [[ -e "${OUTPUT_IMAGE}" ]]; then
   echo "ERROR: ${OUTPUT_IMAGE} already exists. Pick a new name or remove it."
@@ -57,7 +58,7 @@ if [[ -e "${OUTPUT_IMAGE}" ]]; then
 fi
 
 echo "Creating disk image from ${SOURCE_DEVICE}..."
-if ! dd if="${SOURCE_DEVICE}" of="${OUTPUT_IMAGE}" bs=4M status=progress conv=fsync; then
+if ! dd if="${SOURCE_DEVICE}" of="${OUTPUT_IMAGE}" bs="${DD_BLOCK_SIZE}" status=progress conv=fsync; then
   echo "ERROR: Failed to create image from ${SOURCE_DEVICE}."
   exit 1
 fi

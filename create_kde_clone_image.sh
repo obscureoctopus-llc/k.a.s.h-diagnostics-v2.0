@@ -37,8 +37,13 @@ if [[ ! -b "${SOURCE_DEVICE}" ]]; then
   exit 1
 fi
 
-if [[ -z "${IMAGE_NAME}" || "${IMAGE_NAME}" =~ ^[[:space:]]+$ ]]; then
+if [[ -z "${IMAGE_NAME}" ]]; then
   echo "ERROR: IMAGE_NAME cannot be empty."
+  exit 1
+fi
+
+if [[ ! "${IMAGE_NAME}" =~ ^[A-Za-z0-9._-]+$ ]]; then
+  echo "ERROR: IMAGE_NAME may only contain letters, numbers, dot, underscore, and hyphen."
   exit 1
 fi
 

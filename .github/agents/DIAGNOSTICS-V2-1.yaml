@@ -1,0 +1,30 @@
+name: Production Hardened ISO Build
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  build-iso:
+    runs-down: ubuntu-latest
+    container:
+      image: debian:bookworm
+      options: --privileged
+    steps:
+      - name: Checkout AI Manifests
+        uses: actions/checkout@v4
+
+      - name: Install System Build Engine
+        run: |
+          apt-get update
+          apt-get install -y live-build debootstrap live-boot
+
+      - name: Compile Hardened ISO Image
+        run: |
+          lb config
+          lb build
+
+      - name: Archive Production Binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: hardened-debian-kde-bookworm
+          path: "*.iso"

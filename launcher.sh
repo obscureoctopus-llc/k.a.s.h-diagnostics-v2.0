@@ -25,6 +25,12 @@ if [ ! -f "kash_diagnostics.py" ]; then
     exit 1
 fi
 
+# Install Python dependencies if needed
+if ! python3 -c "import fastapi, serial" 2>/dev/null; then
+    echo -e "${YELLOW}[setup] Installing Python dependencies from requirements.txt...${NC}"
+    pip3 install -r requirements.txt
+fi
+
 echo -e "${YELLOW}[1/3] Spawning Backend API server (Python)...${NC}"
 gnome-terminal --tab --title="K.A.S.H. Backend" -- bash -c "
 python3 backend_api.py

@@ -38,7 +38,7 @@ if [[ ! -b "${SOURCE_DEVICE}" ]]; then
 fi
 
 if [[ -z "${IMAGE_NAME// }" ]]; then
-  echo "ERROR: image_name cannot be empty."
+  echo "ERROR: IMAGE_NAME cannot be empty."
   exit 1
 fi
 

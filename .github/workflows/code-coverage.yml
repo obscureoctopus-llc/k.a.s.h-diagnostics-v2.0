@@ -1,0 +1,25 @@
+name: Production Code Quality
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  lint_code:
+    name: Lint Code Base
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4.1.7
+        with:
+          fetch-depth: 0
+      
+      - name: Run Super Linter
+        uses: super-linter/super-linter/slim@v7.2.1
+        env:
+          DEFAULT_BRANCH: main
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VALIDATE_ALL_CODEBASE: false
+          VALIDATE_YAML: true
+  

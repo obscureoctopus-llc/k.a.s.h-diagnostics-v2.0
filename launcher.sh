@@ -26,9 +26,19 @@ if [ ! -f "kash_diagnostics.py" ]; then
 fi
 
 # Install Python dependencies if needed
-if ! python3 -c "import fastapi, serial" 2>/dev/null; then
+missing_modules=()
+python3 -c "import fastapi" 2>/dev/null || missing_modules+=("fastapi")
+python3 -c "import serial" 2>/dev/null || missing_modules+=("pyserial")
+python3 -c "import uvicorn" 2>/dev/null || missing_modules+=("uvicorn")
+
+if [ ${#missing_modules[@]} -gt 0 ]; then
+    echo -e "${YELLOW}[setup] Missing Python modules:${NC} ${missing_modules[*]}"
     echo -e "${YELLOW}[setup] Installing Python dependencies from requirements.txt...${NC}"
-    pip3 install -r requirements.txt
+    if ! pip3 install -r requirements.txt; then
+        echo -e "${RED}ERROR: Failed to install Python dependencies from requirements.txt${NC}"
+        echo -e "${RED}Please check network access, pip3 permissions/version, and requirements.txt availability.${NC}"
+        exit 1
+    fi
 fi
 
 echo -e "${YELLOW}[1/3] Spawning Backend API server (Python)...${NC}"

@@ -37,7 +37,7 @@ if [[ ! -b "${SOURCE_DEVICE}" ]]; then
   exit 1
 fi
 
-if [[ -z "${IMAGE_NAME// }" ]]; then
+if [[ -z "${IMAGE_NAME}" || "${IMAGE_NAME}" =~ ^[[:space:]]+$ ]]; then
   echo "ERROR: IMAGE_NAME cannot be empty."
   exit 1
 fi
@@ -52,7 +52,10 @@ if [[ -e "${OUTPUT_IMAGE}" ]]; then
 fi
 
 echo "Creating disk image from ${SOURCE_DEVICE}..."
-dd if="${SOURCE_DEVICE}" of="${OUTPUT_IMAGE}" bs=4M status=progress conv=fsync
+if ! dd if="${SOURCE_DEVICE}" of="${OUTPUT_IMAGE}" bs=4M status=progress conv=fsync; then
+  echo "ERROR: Failed to create image from ${SOURCE_DEVICE}."
+  exit 1
+fi
 sync
 
 sha256sum "${OUTPUT_IMAGE}" > "${OUTPUT_HASH}"

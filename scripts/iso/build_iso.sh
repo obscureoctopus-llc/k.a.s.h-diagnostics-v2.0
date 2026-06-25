@@ -163,6 +163,14 @@ mount_chroot_fs() {
   mount -t tmpfs tmpfs "${CHROOT_DIR}/run"
 }
 
+unmount_chroot_fs() {
+  cleanup_mount "${CHROOT_DIR}/run"
+  cleanup_mount "${CHROOT_DIR}/dev/pts"
+  cleanup_mount "${CHROOT_DIR}/dev"
+  cleanup_mount "${CHROOT_DIR}/proc"
+  cleanup_mount "${CHROOT_DIR}/sys"
+}
+
 write_sources_list() {
   cat >"${CHROOT_DIR}/etc/apt/sources.list" <<APT
 
@@ -195,7 +203,9 @@ apt-get install -y --no-install-recommends \
   live-boot \
   casper \
   python3 \
-  python3-pip \
+  python3-fastapi \
+  python3-serial \
+  python3-uvicorn \
   ca-certificates
 
 rm -rf /var/lib/apt/lists/*
@@ -213,8 +223,6 @@ PROVISION
     --exclude '__pycache__' \
     --exclude '*.pyc' \
     "${PROJECT_ROOT}/" "${CHROOT_DIR}/opt/kash-diagnostics/"
-
-  chroot "${CHROOT_DIR}" python3 -m pip install --no-cache-dir -r /opt/kash-diagnostics/requirements.txt
 
   cat >"${CHROOT_DIR}/usr/local/bin/kash-diagnostics-launcher" <<'LAUNCHER'
 #!/usr/bin/env bash
@@ -396,6 +404,7 @@ main() {
   bootstrap_base_system
   mount_chroot_fs
   provision_chroot
+  unmount_chroot_fs
   copy_live_boot_assets
   write_grub_cfg
   build_bios_boot_image

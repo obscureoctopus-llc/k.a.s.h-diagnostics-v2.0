@@ -39,6 +39,27 @@ sudo ./create_kde_clone_image.sh /dev/mmcblk0 kde-kash-arm64
 ```
 This writes `images/kde-kash-arm64.img` and `images/kde-kash-arm64.img.sha256`.
 
+### Hardened ISO Build (v3 Branding)
+Builds a bootable BIOS+UEFI ISO artifact named `k.a.s.h-diagnostics-v3.iso`.
+
+```bash
+sudo apt-get update
+sudo apt-get install -y --no-install-recommends \
+  debootstrap squashfs-tools xorriso grub-pc-bin grub-efi-amd64-bin \
+  mtools dosfstools rsync
+
+scripts/iso/validate_iso_pipeline.sh
+sudo scripts/iso/build_iso.sh --output-dir ./output --work-base /tmp/kash-iso-build --force
+```
+
+Artifacts:
+- `output/k.a.s.h-diagnostics-v3.iso`
+- `output/k.a.s.h-diagnostics-v3.iso.sha256`
+
+CI:
+- Workflow: `.github/workflows/iso-build.yml`
+- Uploaded artifact name: `k.a.s.h-diagnostics-v3-iso`
+
 ### Manual
 ```bash
 cd <file_path>  # <file_path> is your <repository_path> (cloned repo root)

@@ -1,0 +1,66 @@
+name: Build K.A.S.H Diagnostics v3 ISO
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'scripts/iso/**'
+      - '.github/workflows/iso-build.yml'
+      - 'requirements.txt'
+      - 'kash_diagnostics.py'
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/iso/**'
+      - '.github/workflows/iso-build.yml'
+      - 'requirements.txt'
+      - 'kash_diagnostics.py'
+
+permissions:
+  contents: read
+
+jobs:
+  build-iso:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      DEBIAN_FRONTEND: noninteractive
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4.2.2
+
+      - name: Install ISO build dependencies
+        run: |
+          set -Eeuo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            debootstrap \
+            squashfs-tools \
+            xorriso \
+            grub-pc-bin \
+            grub-efi-amd64-bin \
+            mtools \
+            dosfstools \
+            rsync
+
+      - name: Validate ISO pipeline
+        run: |
+          set -Eeuo pipefail
+          scripts/iso/validate_iso_pipeline.sh
+
+      - name: Build ISO artifact
+        run: |
+          set -Eeuo pipefail
+          sudo scripts/iso/build_iso.sh --output-dir "${GITHUB_WORKSPACE}/output" --work-base "${RUNNER_TEMP}/iso-build" --force
+
+      - name: Upload ISO artifact
+        uses: actions/upload-artifact@v4.4.3
+        with:
+          name: k.a.s.h-diagnostics-v3-iso
+          path: |
+            output/k.a.s.h-diagnostics-v3.iso
+            output/k.a.s.h-diagnostics-v3.iso.sha256
+          if-no-files-found: error
+          retention-days: 14

@@ -4,3 +4,6 @@ kash_backend.log
 kash_bridge.log
 run/*.pid
 logs/*.log
+.build/
+output/*.iso
+output/*.iso.sha256

@@ -11,6 +11,14 @@ readonly DEFAULT_WORK_BASE="${PROJECT_ROOT}/.build"
 readonly DEFAULT_CODENAME="noble"
 readonly DEFAULT_ARCH="amd64"
 readonly DEFAULT_MIRROR="http://archive.ubuntu.com/ubuntu"
+readonly TRUSTED_MIRRORS=(
+  "http://archive.ubuntu.com/ubuntu"
+  "https://archive.ubuntu.com/ubuntu"
+  "http://security.ubuntu.com/ubuntu"
+  "https://security.ubuntu.com/ubuntu"
+  "http://deb.debian.org/debian"
+  "https://deb.debian.org/debian"
+)
 
 LOG_TS_FORMAT='+%Y-%m-%dT%H:%M:%SZ'
 WORK_DIR=""
@@ -107,14 +115,13 @@ require_root() {
 }
 
 validate_mirror() {
-  case "${MIRROR}" in
-    http://archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|http://security.ubuntu.com/ubuntu|https://security.ubuntu.com/ubuntu|http://deb.debian.org/debian|https://deb.debian.org/debian)
+  local trusted
+  for trusted in "${TRUSTED_MIRRORS[@]}"; do
+    if [[ "${MIRROR}" == "${trusted}" ]]; then
       return 0
-      ;;
-    *)
-      die "Unsupported mirror '${MIRROR}'. Use a trusted Ubuntu/Debian mirror."
-      ;;
-  esac
+    fi
+  done
+  die "Unsupported mirror '${MIRROR}'. Use a trusted Ubuntu/Debian mirror."
 }
 
 validate_arch() {
@@ -173,7 +180,6 @@ unmount_chroot_fs() {
 
 write_sources_list() {
   cat >"${CHROOT_DIR}/etc/apt/sources.list" <<APT
-
 deb ${MIRROR} ${CODENAME} main universe multiverse restricted
 deb ${MIRROR} ${CODENAME}-updates main universe multiverse restricted
 deb http://security.ubuntu.com/ubuntu ${CODENAME}-security main universe multiverse restricted
@@ -255,9 +261,24 @@ SERVICE
 copy_live_boot_assets() {
   local kernel
   local initrd
+  local kernels=()
+  local initrds=()
 
-  kernel="$(ls -1 "${CHROOT_DIR}/boot/vmlinuz-"* 2>/dev/null | sort | tail -n1 || true)"
-  initrd="$(ls -1 "${CHROOT_DIR}/boot/initrd.img-"* 2>/dev/null | sort | tail -n1 || true)"
+  shopt -s nullglob
+  kernels=("${CHROOT_DIR}/boot/vmlinuz-"*)
+  initrds=("${CHROOT_DIR}/boot/initrd.img-"*)
+  shopt -u nullglob
+
+  if [[ ${#kernels[@]} -gt 0 ]]; then
+    kernel="$(printf '%s\n' "${kernels[@]}" | sort | tail -n1)"
+  else
+    kernel=""
+  fi
+  if [[ ${#initrds[@]} -gt 0 ]]; then
+    initrd="$(printf '%s\n' "${initrds[@]}" | sort | tail -n1)"
+  else
+    initrd=""
+  fi
 
   [[ -n "${kernel}" ]] || die "No kernel found in chroot /boot."
   [[ -n "${initrd}" ]] || die "No initrd found in chroot /boot."
@@ -275,7 +296,7 @@ set default=0
 set timeout=5
 
 menuentry "K.A.S.H Diagnostics v3 (Live)" {
-    linux /live/vmlinuz boot=casper quiet splash ---
+    linux /live/vmlinuz boot=casper quiet splash --
     initrd /live/initrd
 }
 GRUBCFG

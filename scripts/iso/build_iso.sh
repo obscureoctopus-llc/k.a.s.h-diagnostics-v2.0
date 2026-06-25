@@ -182,7 +182,7 @@ write_sources_list() {
   cat >"${CHROOT_DIR}/etc/apt/sources.list" <<APT
 deb ${MIRROR} ${CODENAME} main universe multiverse restricted
 deb ${MIRROR} ${CODENAME}-updates main universe multiverse restricted
-deb http://security.ubuntu.com/ubuntu ${CODENAME}-security main universe multiverse restricted
+deb ${MIRROR} ${CODENAME}-security main universe multiverse restricted
 APT
 }
 
@@ -296,7 +296,7 @@ set default=0
 set timeout=5
 
 menuentry "K.A.S.H Diagnostics v3 (Live)" {
-    linux /live/vmlinuz boot=casper quiet splash --
+    linux /live/vmlinuz boot=casper quiet splash
     initrd /live/initrd
 }
 GRUBCFG
@@ -359,7 +359,10 @@ build_iso() {
     -output "${iso_path}" \
     "${IMAGE_DIR}"
 
-  sha256sum "${iso_path}" > "${checksum_path}"
+  (
+    cd "${OUTPUT_DIR}"
+    sha256sum "${APP_BRAND_ISO}" > "${APP_BRAND_ISO}.sha256"
+  )
   log "INFO" "ISO artifact ready: ${iso_path}"
   log "INFO" "Checksum ready: ${checksum_path}"
 }

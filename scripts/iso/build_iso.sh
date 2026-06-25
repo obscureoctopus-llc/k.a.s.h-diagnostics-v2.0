@@ -6,6 +6,9 @@ readonly SCRIPT_NAME="$(basename "$0")"
 readonly PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 readonly APP_BRAND="k.a.s.h-diagnostics-v3"
 readonly APP_BRAND_ISO="${APP_BRAND}.iso"
+readonly APP_ENTRYPOINT="kash_diagnostics.py"
+readonly ISO_VOLID="KASH_DIAG_V3"
+readonly SQUASHFS_COMP="xz"
 readonly DEFAULT_OUTPUT_DIR="${PROJECT_ROOT}/output"
 readonly DEFAULT_WORK_BASE="${PROJECT_ROOT}/.build"
 readonly DEFAULT_CODENAME="noble"
@@ -229,6 +232,7 @@ PROVISION
     --exclude '__pycache__' \
     --exclude '*.pyc' \
     "${PROJECT_ROOT}/" "${CHROOT_DIR}/opt/kash-diagnostics/"
+  [[ -f "${CHROOT_DIR}/opt/kash-diagnostics/${APP_ENTRYPOINT}" ]] || die "Missing app entrypoint: ${APP_ENTRYPOINT}"
 
   cat >"${CHROOT_DIR}/usr/local/bin/kash-diagnostics-launcher" <<'LAUNCHER'
 #!/usr/bin/env bash
@@ -286,7 +290,7 @@ copy_live_boot_assets() {
   cp "${kernel}" "${IMAGE_DIR}/live/vmlinuz"
   cp "${initrd}" "${IMAGE_DIR}/live/initrd"
 
-  mksquashfs "${CHROOT_DIR}" "${IMAGE_DIR}/live/filesystem.squashfs" -e boot
+  mksquashfs "${CHROOT_DIR}" "${IMAGE_DIR}/live/filesystem.squashfs" -comp "${SQUASHFS_COMP}" -e boot
 }
 
 write_grub_cfg() {
@@ -318,6 +322,8 @@ build_bios_boot_image() {
 
 build_uefi_boot_image() {
   log "INFO" "Building UEFI boot image"
+  local efi_img_mb
+  local efi_size_kb
   grub-mkstandalone \
     -O x86_64-efi \
     -o "${WORK_DIR}/bootx64.efi" \
@@ -327,7 +333,13 @@ build_uefi_boot_image() {
     --fonts='' \
     "boot/grub/grub.cfg=${IMAGE_DIR}/boot/grub/grub.cfg"
 
-  dd if=/dev/zero of="${WORK_DIR}/efiboot.img" bs=1M count=20 status=none
+  efi_size_kb="$(du -k "${WORK_DIR}/bootx64.efi" | cut -f1)"
+  efi_img_mb="$(( (efi_size_kb + 3072 + 1023) / 1024 ))"
+  if [[ "${efi_img_mb}" -lt 8 ]]; then
+    efi_img_mb=8
+  fi
+
+  dd if=/dev/zero of="${WORK_DIR}/efiboot.img" bs=1M count="${efi_img_mb}" status=none
   mkfs.vfat "${WORK_DIR}/efiboot.img" >/dev/null
   mmd -i "${WORK_DIR}/efiboot.img" ::EFI ::EFI/BOOT
   mcopy -i "${WORK_DIR}/efiboot.img" "${WORK_DIR}/bootx64.efi" ::EFI/BOOT/BOOTX64.EFI
@@ -347,7 +359,7 @@ build_iso() {
   xorriso -as mkisofs \
     -iso-level 3 \
     -full-iso9660-filenames \
-    -volid "KASH_DIAG_V3" \
+    -volid "${ISO_VOLID}" \
     -eltorito-boot boot/grub/bios.img \
       -no-emul-boot \
       -boot-load-size 4 \

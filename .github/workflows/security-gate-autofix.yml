@@ -91,6 +91,8 @@ jobs:
                 'CodeQL failed for this pull request.',
                 '',
                 'Copilot Autofix agents should now review findings and prepare a patch.',
-                'Please review and apply the generated autofix patch before merging.'
+                'Review findings in the Security tab and this workflow run before merging:',
+                `- Security alerts: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/security/code-scanning`,
+                `- Workflow run: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`
               ].join('\n')
             });

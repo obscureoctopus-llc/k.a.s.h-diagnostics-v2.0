@@ -31,15 +31,15 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           socket_security_api_key: ${{ secrets.SOCKET_SECURITY_API_KEY }}
 
-  block_pipeline:
-    name: Block pipeline (malicious model)
+  block_on_scan_failure:
+    name: Block pipeline on scan failure
     runs-on: ubuntu-latest
     needs: modelscan_socket_scan
     if: ${{ always() && needs.modelscan_socket_scan.result == 'failure' }}
     steps:
       - name: Stop pipeline
         run: |
-          echo "ModelScan/Socket scan failed. Blocking pipeline."
+          echo "ModelScan or Socket scan failed. Blocking pipeline."
           exit 1
 
   codeql_engine:
@@ -94,13 +94,3 @@ jobs:
                 'Please review and apply the generated autofix patch before merging.'
               ].join('\n')
             });
-
-  review_autofix_patch:
-    name: Review and Autofix Patch
-    runs-on: ubuntu-latest
-    needs: copilot_autofix_agents
-    if: ${{ always() && needs.copilot_autofix_agents.result == 'success' }}
-    steps:
-      - name: Await human review
-        run: |
-          echo "Autofix handoff posted. Review and apply patch before merge."

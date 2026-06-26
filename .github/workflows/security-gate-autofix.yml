@@ -1,0 +1,106 @@
+name: Security Gate and Autofix
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  modelscan_socket_scan:
+    name: ModelScan and Socket Scan
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Run Protect AI ModelScan
+        uses: protectai/modelscan-action@v1
+        with:
+          path: .
+
+      - name: Run Socket security scan
+        uses: SocketDev/socket-basics@v2.0.3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          socket_security_api_key: ${{ secrets.SOCKET_SECURITY_API_KEY }}
+
+  block_pipeline:
+    name: Block pipeline (malicious model)
+    runs-on: ubuntu-latest
+    needs: modelscan_socket_scan
+    if: ${{ always() && needs.modelscan_socket_scan.result == 'failure' }}
+    steps:
+      - name: Stop pipeline
+        run: |
+          echo "ModelScan/Socket scan failed. Blocking pipeline."
+          exit 1
+
+  codeql_engine:
+    name: CodeQL Engine
+    runs-on: ubuntu-latest
+    needs: modelscan_socket_scan
+    if: ${{ needs.modelscan_socket_scan.result == 'success' }}
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [python, javascript-typescript]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v3
+
+      - name: Analyze
+        uses: github/codeql-action/analyze@v3
+
+  copilot_autofix_agents:
+    name: Copilot Autofix Agents
+    runs-on: ubuntu-latest
+    needs: codeql_engine
+    if: ${{ always() && github.event_name == 'pull_request' && needs.codeql_engine.result == 'failure' }}
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Post autofix handoff comment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: [
+                'CodeQL failed for this pull request.',
+                '',
+                'Copilot Autofix agents should now review findings and prepare a patch.',
+                'Please review and apply the generated autofix patch before merging.'
+              ].join('\n')
+            });
+
+  review_autofix_patch:
+    name: Review and Autofix Patch
+    runs-on: ubuntu-latest
+    needs: copilot_autofix_agents
+    if: ${{ always() && needs.copilot_autofix_agents.result == 'success' }}
+    steps:
+      - name: Await human review
+        run: |
+          echo "Autofix handoff posted. Review and apply patch before merge."

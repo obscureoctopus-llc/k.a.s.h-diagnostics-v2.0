@@ -27,7 +27,7 @@ jobs:
 
       - name: Run Protect AI ModelScan
         run: |
-          python -m pip install --upgrade pip modelscan
+          python -m pip install --upgrade pip modelscan==0.8.8
           set +e
           modelscan -p .
           MODELSCAN_EXIT_CODE=$?
@@ -54,7 +54,7 @@ jobs:
     steps:
       - name: Stop pipeline
         run: |
-          echo "ModelScan or Socket scan failed. Blocking pipeline."
+          echo "Security scan failed in modelscan_socket_scan job. Blocking pipeline."
           exit 1
 
   codeql_engine:

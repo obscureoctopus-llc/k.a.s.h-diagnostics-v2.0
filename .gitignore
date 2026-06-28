@@ -7,3 +7,5 @@ logs/*.log
 .build/
 output/*.iso
 output/*.iso.sha256
+
+kash_service.log

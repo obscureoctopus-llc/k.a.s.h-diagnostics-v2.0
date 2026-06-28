@@ -1,0 +1,190 @@
+[2026-06-28 23:06:06,503] kash.service — INFO: Opening hardware bridge on /dev/ttyAMA0 @ 9600 baud
+[2026-06-28 23:06:06,503] kash.service — INFO: Unified K.A.S.H. service started
+[2026-06-28 23:06:06,503] kash.service — ERROR: Hardware supervisor exception: [Errno 2] could not open port /dev/ttyAMA0: [Errno 2] No such file or directory: '/dev/ttyAMA0'
+Traceback (most recent call last):
+  File "/opt/hostedtoolcache/Python/3.11.15/x64/lib/python3.11/site-packages/serial/serialposix.py", line 322, in open
+    self.fd = os.open(self.portstr, os.O_RDWR | os.O_NOCTTY | os.O_NONBLOCK)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+FileNotFoundError: [Errno 2] No such file or directory: '/dev/ttyAMA0'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/runner/work/k.a.s.h-diagnostics-v2.0/k.a.s.h-diagnostics-v2.0/src/kash_service.py", line 3055, in run
+    self._open_serial()
+  File "/home/runner/work/k.a.s.h-diagnostics-v2.0/k.a.s.h-diagnostics-v2.0/src/kash_service.py", line 2987, in _open_serial
+    self._serial = serial.Serial(
+                   ^^^^^^^^^^^^^^
+  File "/opt/hostedtoolcache/Python/3.11.15/x64/lib/python3.11/site-packages/serial/serialutil.py", line 244, in __init__
+    self.open()
+  File "/opt/hostedtoolcache/Python/3.11.15/x64/lib/python3.11/site-packages/serial/serialposix.py", line 325, in open
+    raise SerialException(msg.errno, "could not open port {}: {}".format(self._port, msg))
+serial.serialutil.SerialException: [Errno 2] could not open port /dev/ttyAMA0: [Errno 2] No such file or directory: '/dev/ttyAMA0'
+[2026-06-28 23:06:11,506] kash.service — INFO: Opening hardware bridge on /dev/ttyAMA0 @ 9600 baud
+[2026-06-28 23:06:11,506] kash.service — ERROR: Hardware supervisor exception: [Errno 2] could not open port /dev/ttyAMA0: [Errno 2] No such file or directory: '/dev/ttyAMA0'
+Traceback (most recent call last):
+  File "/opt/hostedtoolcache/Python/3.11.15/x64/lib/python3.11/site-packages/serial/serialposix.py", line 322, in open
+    self.fd = os.open(self.portstr, os.O_RDWR | os.O_NOCTTY | os.O_NONBLOCK)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+FileNotFoundError: [Errno 2] No such file or directory: '/dev/ttyAMA0'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/runner/work/k.a.s.h-diagnostics-v2.0/k.a.s.h-diagnostics-v2.0/src/kash_service.py", line 3055, in run
+    self._open_serial()
+  File "/home/runner/work/k.a.s.h-diagnostics-v2.0/k.a.s.h-diagnostics-v2.0/src/kash_service.py", line 2987, in _open_serial
+    self._serial = serial.Serial(
+                   ^^^^^^^^^^^^^^
+  File "/opt/hostedtoolcache/Python/3.11.15/x64/lib/python3.11/site-packages/serial/serialutil.py", line 244, in __init__
+    self.open()
+  File "/opt/hostedtoolcache/Python/3.11.15/x64/lib/python3.11/site-packages/serial/serialposix.py", line 325, in open
+    raise SerialException(msg.errno, "could not open port {}: {}".format(self._port, msg))
+serial.serialutil.SerialException: [Errno 2] could not open port /dev/ttyAMA0: [Errno 2] No such file or directory: '/dev/ttyAMA0'
+[2026-06-28 23:06:16,507] kash.service — INFO: Opening hardware bridge on /dev/ttyAMA0 @ 9600 baud
+[2026-06-28 23:06:16,507] kash.service — ERROR: Hardware supervisor exception: [Errno 2] could not open port /dev/ttyAMA0: [Errno 2] No such file or directory: '/dev/ttyAMA0'
+Traceback (most recent call last):
+  File "/opt/hostedtoolcache/Python/3.11.15/x64/lib/python3.11/site-packages/serial/serialposix.py", line 322, in open
+    self.fd = os.open(self.portstr, os.O_RDWR | os.O_NOCTTY | os.O_NONBLOCK)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+FileNotFoundError: [Errno 2] No such file or directory: '/dev/ttyAMA0'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/runner/work/k.a.s.h-diagnostics-v2.0/k.a.s.h-diagnostics-v2.0/src/kash_service.py", line 3055, in run
+    self._open_serial()
+  File "/home/runner/work/k.a.s.h-diagnostics-v2.0/k.a.s.h-diagnostics-v2.0/src/kash_service.py", line 2987, in _open_serial
+    self._serial = serial.Serial(
+                   ^^^^^^^^^^^^^^
+  File "/opt/hostedtoolcache/Python/3.11.15/x64/lib/python3.11/site-packages/serial/serialutil.py", line 244, in __init__
+    self.open()
+  File "/opt/hostedtoolcache/Python/3.11.15/x64/lib/python3.11/site-packages/serial/serialposix.py", line 325, in open
+    raise SerialException(msg.errno, "could not open port {}: {}".format(self._port, msg))
+serial.serialutil.SerialException: [Errno 2] could not open port /dev/ttyAMA0: [Errno 2] No such file or directory: '/dev/ttyAMA0'
+[2026-06-28 23:06:21,508] kash.service — INFO: Opening hardware bridge on /dev/ttyAMA0 @ 9600 baud
+[2026-06-28 23:06:21,508] kash.service — ERROR: Hardware supervisor exception: [Errno 2] could not open port /dev/ttyAMA0: [Errno 2] No such file or directory: '/dev/ttyAMA0'
+Traceback (most recent call last):
+  File "/opt/hostedtoolcache/Python/3.11.15/x64/lib/python3.11/site-packages/serial/serialposix.py", line 322, in open
+    self.fd = os.open(self.portstr, os.O_RDWR | os.O_NOCTTY | os.O_NONBLOCK)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+FileNotFoundError: [Errno 2] No such file or directory: '/dev/ttyAMA0'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/runner/work/k.a.s.h-diagnostics-v2.0/k.a.s.h-diagnostics-v2.0/src/kash_service.py", line 3055, in run
+    self._open_serial()
+  File "/home/runner/work/k.a.s.h-diagnostics-v2.0/k.a.s.h-diagnostics-v2.0/src/kash_service.py", line 2987, in _open_serial
+    self._serial = serial.Serial(
+                   ^^^^^^^^^^^^^^
+  File "/opt/hostedtoolcache/Python/3.11.15/x64/lib/python3.11/site-packages/serial/serialutil.py", line 244, in __init__
+    self.open()
+  File "/opt/hostedtoolcache/Python/3.11.15/x64/lib/python3.11/site-packages/serial/serialposix.py", line 325, in open
+    raise SerialException(msg.errno, "could not open port {}: {}".format(self._port, msg))
+serial.serialutil.SerialException: [Errno 2] could not open port /dev/ttyAMA0: [Errno 2] No such file or directory: '/dev/ttyAMA0'
+[2026-06-28 23:06:26,509] kash.service — INFO: Opening hardware bridge on /dev/ttyAMA0 @ 9600 baud
+[2026-06-28 23:06:26,509] kash.service — ERROR: Hardware supervisor exception: [Errno 2] could not open port /dev/ttyAMA0: [Errno 2] No such file or directory: '/dev/ttyAMA0'
+Traceback (most recent call last):
+  File "/opt/hostedtoolcache/Python/3.11.15/x64/lib/python3.11/site-packages/serial/serialposix.py", line 322, in open
+    self.fd = os.open(self.portstr, os.O_RDWR | os.O_NOCTTY | os.O_NONBLOCK)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+FileNotFoundError: [Errno 2] No such file or directory: '/dev/ttyAMA0'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/runner/work/k.a.s.h-diagnostics-v2.0/k.a.s.h-diagnostics-v2.0/src/kash_service.py", line 3055, in run
+    self._open_serial()
+  File "/home/runner/work/k.a.s.h-diagnostics-v2.0/k.a.s.h-diagnostics-v2.0/src/kash_service.py", line 2987, in _open_serial
+    self._serial = serial.Serial(
+                   ^^^^^^^^^^^^^^
+  File "/opt/hostedtoolcache/Python/3.11.15/x64/lib/python3.11/site-packages/serial/serialutil.py", line 244, in __init__
+    self.open()
+  File "/opt/hostedtoolcache/Python/3.11.15/x64/lib/python3.11/site-packages/serial/serialposix.py", line 325, in open
+    raise SerialException(msg.errno, "could not open port {}: {}".format(self._port, msg))
+serial.serialutil.SerialException: [Errno 2] could not open port /dev/ttyAMA0: [Errno 2] No such file or directory: '/dev/ttyAMA0'
+[2026-06-28 23:06:31,510] kash.service — INFO: Opening hardware bridge on /dev/ttyAMA0 @ 9600 baud
+[2026-06-28 23:06:31,510] kash.service — ERROR: Hardware supervisor exception: [Errno 2] could not open port /dev/ttyAMA0: [Errno 2] No such file or directory: '/dev/ttyAMA0'
+Traceback (most recent call last):
+  File "/opt/hostedtoolcache/Python/3.11.15/x64/lib/python3.11/site-packages/serial/serialposix.py", line 322, in open
+    self.fd = os.open(self.portstr, os.O_RDWR | os.O_NOCTTY | os.O_NONBLOCK)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+FileNotFoundError: [Errno 2] No such file or directory: '/dev/ttyAMA0'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/runner/work/k.a.s.h-diagnostics-v2.0/k.a.s.h-diagnostics-v2.0/src/kash_service.py", line 3055, in run
+    self._open_serial()
+  File "/home/runner/work/k.a.s.h-diagnostics-v2.0/k.a.s.h-diagnostics-v2.0/src/kash_service.py", line 2987, in _open_serial
+    self._serial = serial.Serial(
+                   ^^^^^^^^^^^^^^
+  File "/opt/hostedtoolcache/Python/3.11.15/x64/lib/python3.11/site-packages/serial/serialutil.py", line 244, in __init__
+    self.open()
+  File "/opt/hostedtoolcache/Python/3.11.15/x64/lib/python3.11/site-packages/serial/serialposix.py", line 325, in open
+    raise SerialException(msg.errno, "could not open port {}: {}".format(self._port, msg))
+serial.serialutil.SerialException: [Errno 2] could not open port /dev/ttyAMA0: [Errno 2] No such file or directory: '/dev/ttyAMA0'
+[2026-06-28 23:06:36,511] kash.service — INFO: Opening hardware bridge on /dev/ttyAMA0 @ 9600 baud
+[2026-06-28 23:06:36,511] kash.service — ERROR: Hardware supervisor exception: [Errno 2] could not open port /dev/ttyAMA0: [Errno 2] No such file or directory: '/dev/ttyAMA0'
+Traceback (most recent call last):
+  File "/opt/hostedtoolcache/Python/3.11.15/x64/lib/python3.11/site-packages/serial/serialposix.py", line 322, in open
+    self.fd = os.open(self.portstr, os.O_RDWR | os.O_NOCTTY | os.O_NONBLOCK)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+FileNotFoundError: [Errno 2] No such file or directory: '/dev/ttyAMA0'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/runner/work/k.a.s.h-diagnostics-v2.0/k.a.s.h-diagnostics-v2.0/src/kash_service.py", line 3055, in run
+    self._open_serial()
+  File "/home/runner/work/k.a.s.h-diagnostics-v2.0/k.a.s.h-diagnostics-v2.0/src/kash_service.py", line 2987, in _open_serial
+    self._serial = serial.Serial(
+                   ^^^^^^^^^^^^^^
+  File "/opt/hostedtoolcache/Python/3.11.15/x64/lib/python3.11/site-packages/serial/serialutil.py", line 244, in __init__
+    self.open()
+  File "/opt/hostedtoolcache/Python/3.11.15/x64/lib/python3.11/site-packages/serial/serialposix.py", line 325, in open
+    raise SerialException(msg.errno, "could not open port {}: {}".format(self._port, msg))
+serial.serialutil.SerialException: [Errno 2] could not open port /dev/ttyAMA0: [Errno 2] No such file or directory: '/dev/ttyAMA0'
+[2026-06-28 23:06:41,512] kash.service — INFO: Opening hardware bridge on /dev/ttyAMA0 @ 9600 baud
+[2026-06-28 23:06:41,512] kash.service — ERROR: Hardware supervisor exception: [Errno 2] could not open port /dev/ttyAMA0: [Errno 2] No such file or directory: '/dev/ttyAMA0'
+Traceback (most recent call last):
+  File "/opt/hostedtoolcache/Python/3.11.15/x64/lib/python3.11/site-packages/serial/serialposix.py", line 322, in open
+    self.fd = os.open(self.portstr, os.O_RDWR | os.O_NOCTTY | os.O_NONBLOCK)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+FileNotFoundError: [Errno 2] No such file or directory: '/dev/ttyAMA0'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/runner/work/k.a.s.h-diagnostics-v2.0/k.a.s.h-diagnostics-v2.0/src/kash_service.py", line 3055, in run
+    self._open_serial()
+  File "/home/runner/work/k.a.s.h-diagnostics-v2.0/k.a.s.h-diagnostics-v2.0/src/kash_service.py", line 2987, in _open_serial
+    self._serial = serial.Serial(
+                   ^^^^^^^^^^^^^^
+  File "/opt/hostedtoolcache/Python/3.11.15/x64/lib/python3.11/site-packages/serial/serialutil.py", line 244, in __init__
+    self.open()
+  File "/opt/hostedtoolcache/Python/3.11.15/x64/lib/python3.11/site-packages/serial/serialposix.py", line 325, in open
+    raise SerialException(msg.errno, "could not open port {}: {}".format(self._port, msg))
+serial.serialutil.SerialException: [Errno 2] could not open port /dev/ttyAMA0: [Errno 2] No such file or directory: '/dev/ttyAMA0'
+[2026-06-28 23:06:46,513] kash.service — INFO: Opening hardware bridge on /dev/ttyAMA0 @ 9600 baud
+[2026-06-28 23:06:46,513] kash.service — ERROR: Hardware supervisor exception: [Errno 2] could not open port /dev/ttyAMA0: [Errno 2] No such file or directory: '/dev/ttyAMA0'
+Traceback (most recent call last):
+  File "/opt/hostedtoolcache/Python/3.11.15/x64/lib/python3.11/site-packages/serial/serialposix.py", line 322, in open
+    self.fd = os.open(self.portstr, os.O_RDWR | os.O_NOCTTY | os.O_NONBLOCK)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+FileNotFoundError: [Errno 2] No such file or directory: '/dev/ttyAMA0'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/runner/work/k.a.s.h-diagnostics-v2.0/k.a.s.h-diagnostics-v2.0/src/kash_service.py", line 3055, in run
+    self._open_serial()
+  File "/home/runner/work/k.a.s.h-diagnostics-v2.0/k.a.s.h-diagnostics-v2.0/src/kash_service.py", line 2987, in _open_serial
+    self._serial = serial.Serial(
+                   ^^^^^^^^^^^^^^
+  File "/opt/hostedtoolcache/Python/3.11.15/x64/lib/python3.11/site-packages/serial/serialutil.py", line 244, in __init__
+    self.open()
+  File "/opt/hostedtoolcache/Python/3.11.15/x64/lib/python3.11/site-packages/serial/serialposix.py", line 325, in open
+    raise SerialException(msg.errno, "could not open port {}: {}".format(self._port, msg))
+serial.serialutil.SerialException: [Errno 2] could not open port /dev/ttyAMA0: [Errno 2] No such file or directory: '/dev/ttyAMA0'

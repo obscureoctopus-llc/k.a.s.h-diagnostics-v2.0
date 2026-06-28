@@ -1,66 +1,58 @@
-name: Build K.A.S.H Diagnostics v3 ISO
+name: Build K.A.S.H Diagnostics Production Firmware
 
 on:
   workflow_dispatch:
   pull_request:
     branches: [main]
     paths:
-      - 'scripts/iso/**'
+      - 'src/**'
       - '.github/workflows/iso-build.yml'
       - 'requirements.txt'
-      - 'kash_diagnostics.py'
   push:
     branches: [main]
     paths:
-      - 'scripts/iso/**'
+      - 'src/**'
       - '.github/workflows/iso-build.yml'
       - 'requirements.txt'
-      - 'kash_diagnostics.py'
 
 permissions:
   contents: read
 
 jobs:
-  build-iso:
+  build-firmware:
     runs-on: ubuntu-24.04
-    timeout-minutes: 90
-    env:
-      DEBIAN_FRONTEND: noninteractive
+    timeout-minutes: 30
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4.2.2
 
-      - name: Install ISO build dependencies
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install Production Compiler Dependencies
         run: |
           set -Eeuo pipefail
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            debootstrap \
-            squashfs-tools \
-            xorriso \
-            grub-pc-bin \
-            grub-efi-amd64-bin \
-            mtools \
-            dosfstools \
-            rsync
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          pip install pyinstaller platformio
 
-      - name: Validate ISO pipeline
+      - name: Compile Core Backend Binary
         run: |
           set -Eeuo pipefail
-          scripts/iso/validate_iso_pipeline.sh
+          # Compiles our core engine into a standalone production binary executable (.bin)
+          mkdir -p dist
+          pyinstaller --onefile --clean src/kash_service.py --name kash_service.bin
 
-      - name: Build ISO artifact
-        run: |
-          set -Eeuo pipefail
-          sudo scripts/iso/build_iso.sh --output-dir "${GITHUB_WORKSPACE}/output" --work-base "${RUNNER_TEMP}/iso-build" --force
-
-      - name: Upload ISO artifact
+      - name: Upload Production Firmware Artifacts
         uses: actions/upload-artifact@v4.4.3
         with:
-          name: k.a.s.h-diagnostics-v3-iso
+          name: k.a.s.h-production-firmware
           path: |
-            output/k.a.s.h-diagnostics-v3.iso
-            output/k.a.s.h-diagnostics-v3.iso.sha256
+            dist/kash_service.bin
+            src/index.html
           if-no-files-found: error
           retention-days: 14

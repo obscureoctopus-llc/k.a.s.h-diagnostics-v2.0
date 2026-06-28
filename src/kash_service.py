@@ -99,13 +99,10 @@ def configure_logging() -> logging.Logger:
 
 
 service_log = configure_logging()
-import json
-import logging
 import struct
-import time
 from dataclasses import dataclass, field
 from enum import IntEnum, auto
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Callable, Tuple
 
 log = logging.getLogger("kash.diag")
 
@@ -2940,6 +2937,66 @@ class UniversalDiagnosticEngine:
         self.detected_protocol = None
 
 
+def print_vehicle_database():
+    """Print the full vehicle coverage database."""
+    print("\n" + "=" * 70)
+    print("  K.A.S.H. DIAGNOSTICS — UNIVERSAL VEHICLE COVERAGE")
+    print("  If it has wheels and a computer, K.A.S.H. can diagnose it.")
+    print("=" * 70)
+
+    total_makes = 0
+    total_models = 0
+
+    for vtype, makes in VEHICLE_DATABASE.items():
+        print(f"\n{'─' * 60}")
+        print(f"  {vtype.name.replace('_', ' ')}")
+        print(f"{'─' * 60}")
+        for make_key, info in makes.items():
+            total_makes += 1
+            name = make_key.replace("_", " ")
+            years = info.get("years", "")
+            protocols = []
+            if "protocols" in info:
+                for _, protos in info["protocols"].items():
+                    for protocol in protos:
+                        if protocol.name not in protocols:
+                            protocols.append(protocol.name)
+
+            print(f"\n  {name}")
+            if years:
+                print(f"    Years:     {years}")
+            if protocols:
+                print(f"    Protocols: {', '.join(protocols)}")
+            if "brands" in info:
+                print(f"    Brands:    {', '.join(info['brands'])}")
+            if "families" in info:
+                families = info["families"]
+                if isinstance(families, dict):
+                    for fam, models in families.items():
+                        total_models += len(models) if isinstance(models, list) else 0
+                        if isinstance(models, list):
+                            print(f"    {fam}: {', '.join(models)}")
+                elif isinstance(families, list):
+                    total_models += len(families)
+                    print(f"    Families: {', '.join(families)}")
+            if "engines" in info:
+                print(f"    Engines:   {', '.join(info['engines'])}")
+            if "modules" in info:
+                suffix = "..." if len(info.get("modules", [])) > 8 else ""
+                print(f"    Modules:   {', '.join(info['modules'][:8])}{suffix}")
+
+    print(f"\n{'=' * 70}")
+    print(f"  Total vehicle types: {len(VehicleType)}")
+    print(f"  Total makes/brands:  {total_makes}")
+    print(f"  Total models:        {total_models}+")
+    print(f"  Total protocols:     {len(Protocol)}")
+    print(f"  Total generic DTCs:  {len(GENERIC_DTCS)}")
+    print(f"  Total J1939 SPNs:    {len(J1939_SPNS)}")
+    print(f"  Diag procedures:     {len(DIAGNOSTIC_PROCEDURES)}")
+    print(f"  Module init procs:   {len(MODULE_INIT_PROCEDURES)}")
+    print(f"{'=' * 70}\n")
+
+
 FRAME_PATTERNS = {
     "J1939": re.compile(r"\bJ1939\b|\bPGN\b|\bSPN\b", re.IGNORECASE),
     "KAWASAKI_KDS": re.compile(r"\bKDS\b|\bKAWASAKI\b", re.IGNORECASE),
@@ -3293,16 +3350,23 @@ class ServiceRuntime:
         return result
 
 
-runtime = ServiceRuntime()
+runtime: Optional[ServiceRuntime] = None
+
+
+def get_runtime() -> ServiceRuntime:
+    global runtime
+    if runtime is None:
+        runtime = ServiceRuntime()
+    return runtime
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    await runtime.start()
+    await get_runtime().start()
     try:
         yield
     finally:
-        await runtime.stop()
+        await get_runtime().stop()
 
 
 app = FastAPI(title="K.A.S.H. Diagnostics", version=VERSION, lifespan=lifespan)
@@ -3323,7 +3387,7 @@ def html_file(name: str) -> Path:
 
 
 def latest_hardware_frame() -> Dict[str, Any]:
-    return runtime.supervisor.get_latest_frame()
+    return get_runtime().supervisor.get_latest_frame()
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -3338,6 +3402,7 @@ def styles() -> Response:
 
 @app.get("/health")
 def health() -> Dict[str, Any]:
+    runtime = get_runtime()
     return {
         "status": "ok",
         "version": VERSION,
@@ -3348,6 +3413,7 @@ def health() -> Dict[str, Any]:
 
 @app.get("/api/status")
 def api_status() -> Dict[str, Any]:
+    runtime = get_runtime()
     latest = latest_hardware_frame()
     return {
         "success": True,
@@ -3364,24 +3430,24 @@ def api_status() -> Dict[str, Any]:
 
 @app.post("/api/connect")
 def api_connect() -> Dict[str, Any]:
-    return runtime.connect()
+    return get_runtime().connect()
 
 
 @app.post("/api/disconnect")
 def api_disconnect() -> Dict[str, Any]:
-    runtime.engine.disconnect()
+    get_runtime().engine.disconnect()
     return {"success": True, "hardware_state": latest_hardware_frame()["hardware_state"]}
 
 
 @app.get("/api/scan")
 def api_scan() -> Dict[str, Any]:
-    result = runtime.run_scan()
+    result = get_runtime().run_scan()
     return {"success": "error" not in result, **to_jsonable(result)}
 
 
 @app.post("/api/clear")
 def api_clear() -> Dict[str, Any]:
-    interface = runtime.engine.interface
+    interface = get_runtime().engine.interface
     if not interface or not interface.is_connected:
         return {"success": False, "error": "Not connected to any vehicle"}
     with suppress(Exception):
@@ -3393,7 +3459,7 @@ def api_clear() -> Dict[str, Any]:
 
 @app.get("/api/vin")
 def api_vin() -> Dict[str, Any]:
-    interface = runtime.engine.interface
+    interface = get_runtime().engine.interface
     vin = None
     if interface and hasattr(interface, "read_vin"):
         with suppress(Exception):
@@ -3403,7 +3469,7 @@ def api_vin() -> Dict[str, Any]:
 
 @app.get("/api/readiness")
 def api_readiness() -> Dict[str, Any]:
-    interface = runtime.engine.interface
+    interface = get_runtime().engine.interface
     if not interface or not interface.is_connected:
         return {"success": False, "error": "Not connected to any vehicle"}
     with suppress(Exception):
@@ -3413,7 +3479,7 @@ def api_readiness() -> Dict[str, Any]:
 
 @app.get("/api/freeze")
 def api_freeze() -> Dict[str, Any]:
-    interface = runtime.engine.interface
+    interface = get_runtime().engine.interface
     if not interface or not interface.is_connected:
         return {"success": False, "error": "Not connected to any vehicle"}
     with suppress(Exception):
@@ -3424,12 +3490,12 @@ def api_freeze() -> Dict[str, Any]:
 
 @app.get("/api/modules")
 def api_modules() -> Dict[str, Any]:
-    return {"success": True, "modules": runtime.get_modules()}
+    return {"success": True, "modules": get_runtime().get_modules()}
 
 
 @app.get("/api/dtc/{code}")
 def api_dtc(code: str) -> Dict[str, Any]:
-    dtc = runtime.engine.lookup_dtc(code)
+    dtc = UniversalDiagnosticEngine().lookup_dtc(code)
     if not dtc:
         raise HTTPException(status_code=404, detail=f"DTC '{code.upper()}' not found")
     return {"success": True, **to_jsonable(dtc)}
@@ -3443,7 +3509,7 @@ def api_procedures() -> Dict[str, Any]:
 
 @app.get("/api/procedures/symptom")
 def api_procedures_symptom(q: str = Query(..., min_length=1)) -> Dict[str, Any]:
-    procedures = [to_jsonable(proc) for proc in runtime.engine.get_procedures_for_symptom(q)]
+    procedures = [to_jsonable(proc) for proc in UniversalDiagnosticEngine().get_procedures_for_symptom(q)]
     return {"success": True, "symptom": q, "count": len(procedures), "procedures": procedures}
 
 
@@ -3492,7 +3558,7 @@ def api_live() -> Dict[str, Any]:
 @app.websocket("/ws/live")
 async def ws_live(websocket: WebSocket) -> None:
     await websocket.accept()
-    queue = await runtime.broker.subscribe()
+    queue = await get_runtime().broker.subscribe()
     await websocket.send_json(to_jsonable(latest_hardware_frame()))
     try:
         while True:
@@ -3501,11 +3567,11 @@ async def ws_live(websocket: WebSocket) -> None:
     except WebSocketDisconnect:
         service_log.info("WebSocket client disconnected")
     finally:
-        await runtime.broker.unsubscribe(queue)
+        await get_runtime().broker.unsubscribe(queue)
 
 
 def print_dtc_lookup(code: str) -> int:
-    result = runtime.engine.lookup_dtc(code)
+    result = UniversalDiagnosticEngine().lookup_dtc(code)
     if not result:
         print(json.dumps({"error": f"DTC '{code.upper()}' not found"}, indent=2))
         return 1
@@ -3528,4 +3594,4 @@ def main(argv: Optional[List[str]] = None) -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    sys.exit(main())

@@ -67,13 +67,13 @@ python -m PyInstaller \
 
 BINARY="dist/kash-diagnostics"
 [[ -f "$BINARY" ]] || fail "Expected binary not found at $BINARY" 20
-SIZE_MB="$(python3 - <<'PY'
+SIZE_MB="$(python3 - <<'PY' || exit 1
 from pathlib import Path
 binary = Path('dist/kash-diagnostics')
 print(f"{binary.stat().st_size / (1024 * 1024):.2f}")
 PY
-)"
-sha256sum "$BINARY" > dist/kash-diagnostics.sha256 || fail "Failed to generate checksum" 21
+)" || fail "Failed to calculate binary size" 21
+sha256sum "$BINARY" > dist/kash-diagnostics.sha256 || fail "Failed to generate checksum" 22
 
 echo "[compile_backend] Build complete"
 echo "[compile_backend] Binary: $BINARY (${SIZE_MB} MB)"

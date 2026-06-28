@@ -25,20 +25,26 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4.2.2
+        uses: actions/checkout@v4.2.2   # Verified stable Node 24 compliant target
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v5.4.0 # Verified stable Node 24 compliant target
         with:
           python-version: '3.12'
           cache: 'pip'
 
-      - name: Install Production Compiler Dependencies
+      - name: Install Production Compiler and Linter Dependencies
         run: |
           set -Eeuo pipefail
           python -m pip install --upgrade pip
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-          pip install pyinstaller platformio
+          pip install pyinstaller platformio ruff
+
+      - name: Lint Code Base
+        run: |
+          set -Eeuo pipefail
+          # Strict linting check using ruff. Will fail the pipeline if syntactic errors or bad practices exist.
+          ruff check src/
 
       - name: Compile Core Backend Binary
         run: |
@@ -48,7 +54,7 @@ jobs:
           pyinstaller --onefile --clean src/kash_service.py --name kash_service.bin
 
       - name: Upload Production Firmware Artifacts
-        uses: actions/upload-artifact@v4.4.3
+        uses: actions/upload-artifact@v4.6.1 # Fully updated version tracking to clear Node 24 constraints
         with:
           name: k.a.s.h-production-firmware
           path: |

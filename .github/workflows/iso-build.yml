@@ -25,10 +25,10 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4.2.2   # Verified stable Node 24 compliant target
+        uses: actions/checkout@v7        # Uses native Node 24 execution and secures against fork pwn requests
 
       - name: Set up Python
-        uses: actions/setup-python@v5.4.0 # Verified stable Node 24 compliant target
+        uses: actions/setup-python@v6   # Upgraded to v6 to completely drop deprecated Node 20 dependencies
         with:
           python-version: '3.12'
           cache: 'pip'
@@ -54,7 +54,7 @@ jobs:
           pyinstaller --onefile --clean src/kash_service.py --name kash_service.bin
 
       - name: Upload Production Firmware Artifacts
-        uses: actions/upload-artifact@v4.6.1 # Fully updated version tracking to clear Node 24 constraints
+        uses: actions/upload-artifact@v7 # Upgraded to v7 for uncompressed/compressed Node 24 native artifacts
         with:
           name: k.a.s.h-production-firmware
           path: |
@@ -62,3 +62,4 @@ jobs:
             src/index.html
           if-no-files-found: error
           retention-days: 14
+          

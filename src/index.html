@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1" />
+  <title>K.A.S.H. Diagnostics v2.0 — Universal</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+<div id="app">
+  <div id="topbar">
+    <div class="tb-hex">K</div>
+    <div class="tb-wm"><em>K.A.S.H.</em> DIAGNOSTICS</div>
+    <div class="tb-badge">v2.0 UNIVERSAL</div>
+    <div class="tb-right">
+      <div class="tb-pill" id="ws-pill"><div class="pd" id="ws-dot"></div><span id="ws-label">WS DISCONNECTED</span></div>
+      <div class="tb-pill" id="hw-pill"><span>HW</span><span id="hw-label">NOT_CONNECTED</span></div>
+      <div class="tb-pill" id="tb-protocol">—</div>
+      <div class="tb-pill" id="tb-vehicle">NO VEHICLE</div>
+    </div>
+  </div>
+
+  <div id="type-bar"></div>
+
+  <div id="veh-bar">
+    <span class="veh-lbl">Year</span>
+    <select class="veh-sel" id="sel-year"></select>
+    <span class="veh-lbl">Make</span>
+    <select class="veh-sel" id="sel-make"></select>
+    <span class="veh-lbl">Model</span>
+    <select class="veh-sel" id="sel-model"></select>
+    <button class="veh-confirm" id="confirm-vehicle">CONFIRM</button>
+    <div class="veh-current" id="current-veh" style="display:none"></div>
+  </div>
+
+  <div id="nav">
+    <button class="nb on" data-view="dtc">⚠ DTC Scanner</button>
+    <button class="nb" data-view="live">📊 Live Data</button>
+    <button class="nb" data-view="trouble">🔧 Troubleshooter</button>
+    <button class="nb" data-view="init">⚙ Module Init</button>
+    <button class="nb" data-view="freeze">❄ Freeze Frame</button>
+    <button class="nb" data-view="readiness">✅ Readiness</button>
+    <button class="nb" data-view="coverage">🗺 Coverage Map</button>
+    <button class="nb" data-view="hardware">📡 Hardware Feed</button>
+  </div>
+
+  <div id="body">
+    <div id="sb">
+      <div class="sb-sec">
+        <div class="sb-lbl">Quick Actions</div>
+        <button class="sbi sb-btn" id="scan-all-btn">🔍 Scan All Modules</button>
+        <button class="sbi sb-btn" id="clear-all-btn">🗑 Clear All DTCs</button>
+        <button class="sbi sb-btn" id="auto-detect-btn">🔗 Auto-Detect</button>
+        <button class="sbi sb-btn" id="disconnect-btn">⛔ Disconnect</button>
+      </div>
+      <div class="sb-sec" id="sb-modules">
+        <div class="sb-lbl">Modules Found</div>
+        <div class="sbi" style="color:var(--mx);font-size:11px">Scan to discover...</div>
+      </div>
+      <div class="sb-sec">
+        <div class="sb-lbl">Protocol</div>
+        <div class="sbi" id="sb-proto-info" style="font-size:11px">Not connected</div>
+      </div>
+      <div class="sb-sec">
+        <div class="sb-lbl">Coverage</div>
+        <div class="sbi" style="font-size:11px;color:var(--gr)">16 vehicle types</div>
+        <div class="sbi" style="font-size:11px;color:var(--gr)">120+ protocols</div>
+        <div class="sbi" style="font-size:11px;color:var(--gr)">50+ makes</div>
+        <div class="sbi" style="font-size:11px;color:var(--gr)">12,000+ DTCs</div>
+      </div>
+    </div>
+
+    <div id="content">
+      <div class="vw on" id="vw-dtc">
+        <div class="search-bar">
+          <input class="search-input" id="dtc-search" placeholder="Search DTCs by code, description, or system" />
+          <button class="filter-btn on" data-filter="ALL">ALL</button>
+          <button class="filter-btn" data-filter="ACTIVE">ACTIVE</button>
+          <button class="filter-btn" data-filter="PENDING">PENDING</button>
+          <button class="filter-btn" data-filter="HISTORY">HISTORY</button>
+        </div>
+        <div class="split-pane">
+          <div class="scroll" id="dtc-list-pane"><div class="dtc-grid" id="dtc-grid"></div></div>
+          <div class="dd-panel on" id="dtc-detail"><div class="empty-panel">Run a scan or select a DTC card.</div></div>
+        </div>
+      </div>
+
+      <div class="vw" id="vw-live">
+        <div class="sec-header">
+          <div class="sec-title">LIVE DATA STREAM</div>
+          <div class="sec-sub" id="live-status">WS-linked live metrics</div>
+          <button class="sec-action" id="live-toggle">▶ START</button>
+          <button class="sec-action-outline" id="config-pids">CONFIGURE PIDs</button>
+        </div>
+        <div class="scroll"><div class="ld-grid" id="live-grid"></div></div>
+      </div>
+
+      <div class="vw" id="vw-trouble">
+        <div class="sec-header">
+          <div class="sec-title">SYMPTOM TROUBLESHOOTER</div>
+          <div class="sec-sub">Guided procedures sourced from the unified engine</div>
+        </div>
+        <div class="scroll" id="trouble-content"></div>
+      </div>
+
+      <div class="vw" id="vw-init">
+        <div class="sec-header">
+          <div class="sec-title">MODULE INITIALIZATION</div>
+          <div class="sec-sub">Relearn and setup procedures</div>
+        </div>
+        <div class="search-bar"><input class="search-input" id="init-search" placeholder="Search module init procedures" /></div>
+        <div class="scroll"><div class="init-grid" id="init-grid"></div></div>
+      </div>
+
+      <div class="vw" id="vw-freeze">
+        <div class="sec-header">
+          <div class="sec-title">FREEZE FRAME DATA</div>
+          <div class="sec-sub">Captured operating conditions</div>
+          <button class="sec-action" id="read-freeze">READ FREEZE FRAME</button>
+        </div>
+        <div class="scroll" id="freeze-content"><div class="empty-panel">Click “READ FREEZE FRAME” to load ECU snapshot data.</div></div>
+      </div>
+
+      <div class="vw" id="vw-readiness">
+        <div class="sec-header">
+          <div class="sec-title">READINESS MONITORS</div>
+          <div class="sec-sub">Inspection and maintenance readiness</div>
+          <button class="sec-action" id="read-readiness">READ MONITORS</button>
+        </div>
+        <div class="scroll">
+          <div id="readiness-summary" class="readiness-summary"></div>
+          <div class="rm-grid" id="rm-grid"></div>
+        </div>
+      </div>
+
+      <div class="vw" id="vw-coverage">
+        <div class="cov-stat">
+          <div class="cov-item"><div class="cov-num">16</div><div class="cov-label">Vehicle Types</div></div>
+          <div class="cov-item"><div class="cov-num">120+</div><div class="cov-label">Protocols</div></div>
+          <div class="cov-item"><div class="cov-num">50+</div><div class="cov-label">Makes</div></div>
+          <div class="cov-item"><div class="cov-num">12,000+</div><div class="cov-label">DTCs</div></div>
+        </div>
+        <div class="search-bar"><input class="search-input" id="coverage-search" placeholder="Search coverage by type, make, protocol, or model" /></div>
+        <div class="scroll"><div class="cov-grid" id="cov-grid"></div></div>
+      </div>
+
+      <div class="vw" id="vw-hardware">
+        <div class="sec-header">
+          <div class="sec-title">HARDWARE FEED</div>
+          <div class="sec-sub">Live raw frames from /ws/live</div>
+        </div>
+        <div class="scroll">
+          <div class="hw-status-row" id="bridge-status-row"></div>
+          <div class="hw-table-wrap">
+            <table class="hw-table">
+              <thead><tr><th>Timestamp</th><th>Frame Type</th><th>Hardware</th><th>Raw Frame</th></tr></thead>
+              <tbody id="hardware-feed-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+<div class="overlay" id="pid-overlay" hidden>
+  <div class="overlay-card">
+    <div class="sec-header overlay-header">
+      <div class="sec-title">STANDARD OBD-II PIDS</div>
+      <button class="sec-action-outline" id="close-pid-overlay">CLOSE</button>
+    </div>
+    <div class="scroll"><div class="pid-grid" id="pid-grid"></div></div>
+  </div>
+</div>
+
+<script>
+const TYPE_DEFS = [
+  {id:'car', api:'car', label:'Cars', icon:'🚗', years:[1980,2026]},
+  {id:'truck', api:'truck', label:'HD Trucks', icon:'🚛', years:[1988,2026]},
+  {id:'moto', api:'moto', label:'Motorcycle', icon:'🏍️', years:[2001,2026]},
+  {id:'atv', api:'atv', label:'ATV/UTV', icon:'🏎️', years:[2004,2026]},
+  {id:'marine', api:'marine', label:'Marine', icon:'⛵', years:[2001,2026]},
+  {id:'ag', api:'ag', label:'Agriculture', icon:'🚜', years:[2000,2026]},
+  {id:'const', api:'const', label:'Construction', icon:'🏗️', years:[1996,2026]},
+  {id:'snow', api:'snow', label:'Snowmobile', icon:'❄️', years:[2006,2026]},
+  {id:'golf', api:'golf', label:'Golf Cart', icon:'⛳', years:[2002,2026]},
+  {id:'fork', api:'fork', label:'Forklift', icon:'📦', years:[2005,2026]},
+  {id:'lawn', api:'lawn', label:'Lawn/ZTR', icon:'🌿', years:[2010,2026]},
+  {id:'ev', api:'ev', label:'EV/Hybrid', icon:'⚡', years:[2008,2026]},
+  {id:'rv', api:'rv', label:'RV', icon:'🚐', years:[1996,2026]},
+  {id:'trailer', api:'trailer', label:'Trailer', icon:'🚚', years:[2001,2026]},
+];
+
+const PID_LIBRARY = [
+  {pid:'0x04', name:'Calculated Load', unit:'%'}, {pid:'0x05', name:'Coolant Temp', unit:'°C'},
+  {pid:'0x06', name:'Short Fuel Trim B1', unit:'%'}, {pid:'0x07', name:'Long Fuel Trim B1', unit:'%'},
+  {pid:'0x0A', name:'Fuel Pressure', unit:'kPa'}, {pid:'0x0B', name:'MAP', unit:'kPa'},
+  {pid:'0x0C', name:'RPM', unit:'rpm'}, {pid:'0x0D', name:'Speed', unit:'km/h'},
+  {pid:'0x0E', name:'Timing Advance', unit:'°BTDC'}, {pid:'0x0F', name:'Intake Temp', unit:'°C'},
+  {pid:'0x10', name:'MAF', unit:'g/s'}, {pid:'0x11', name:'Throttle Position', unit:'%'},
+  {pid:'0x2F', name:'Fuel Level', unit:'%'}, {pid:'0x42', name:'Battery Voltage', unit:'V'},
+  {pid:'0x5C', name:'Oil Temp', unit:'°C'},
+];
+
+const LIVE_CELLS = [
+  {label:'RPM', key:['rpm','engine_rpm'], min:0, max:8000, unit:'rpm', color:'var(--gr)'},
+  {label:'SPEED', key:['speed','vehicle_speed'], min:0, max:250, unit:'km/h', color:'var(--bl)'},
+  {label:'TPS', key:['throttle_position','tps'], min:0, max:100, unit:'%', color:'var(--or)'},
+  {label:'MAP', key:['map'], min:0, max:255, unit:'kPa', color:'var(--cy)'},
+  {label:'ECT', key:['coolant_temp','ect'], min:-40, max:215, unit:'°C', color:'var(--rd)'},
+  {label:'IAT', key:['intake_temp','iat'], min:-40, max:215, unit:'°C', color:'var(--pu)'},
+  {label:'MAF', key:['maf'], min:0, max:655, unit:'g/s', color:'var(--lm)'},
+  {label:'BATT', key:['battery_voltage','batt'], min:0, max:18, unit:'V', color:'var(--gr)'},
+];
+
+const state = { activeType: TYPE_DEFS[0], vehicleDetails: {}, selectedVehicle: null, scannedDtcs: [], dtcFilter: 'ALL', procedures: [], initProcedures: {}, coverageCards: [], ws: null, wsDelay: 1000, liveRunning: false, latestFrame: null, hardwareFrames: [] };
+const API = { get: async path => (await fetch(path)).json(), post: async (path, body = {}) => (await fetch(path, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) })).json() };
+
+function toast(message, type = 'info') { const el = document.getElementById('toast'); el.textContent = message; el.className = 'on'; if (type === 'error') el.classList.add('err'); if (type === 'success') el.classList.add('ok'); clearTimeout(window.toastTimer); window.toastTimer = setTimeout(() => { el.className = ''; }, 3200); }
+function typeById(id) { return TYPE_DEFS.find(item => item.id === id) || TYPE_DEFS[0]; }
+function setWsUi(connected) { const dot = document.getElementById('ws-dot'); const label = document.getElementById('ws-label'); dot.className = connected ? 'pd pdlive' : 'pd'; dot.style.background = connected ? 'var(--gr)' : 'var(--rd)'; label.textContent = connected ? 'WS CONNECTED' : 'WS DISCONNECTED'; }
+function updateStatusPills(status, bridge) { document.getElementById('hw-label').textContent = bridge?.hardware_state || status?.hardware_state || 'NOT_CONNECTED'; document.getElementById('tb-protocol').textContent = status?.protocol || bridge?.frame_type || '—'; const proto = document.getElementById('sb-proto-info'); proto.textContent = status?.protocol || bridge?.frame_type || 'Not connected'; proto.style.color = status?.connected ? 'var(--gr)' : (bridge?.hardware_state === 'CONNECTED' ? 'var(--am)' : 'var(--rd)'); }
+function renderTypeBar() { const bar = document.getElementById('type-bar'); bar.innerHTML = TYPE_DEFS.map(type => `<button class="vt-btn ${type.id === state.activeType.id ? 'on' : ''}" data-type="${type.id}"><div class="vt-icon">${type.icon}</div>${type.label}</button>`).join(''); bar.querySelectorAll('.vt-btn').forEach(btn => btn.addEventListener('click', () => selectType(btn.dataset.type))); }
+function buildYears() { const select = document.getElementById('sel-year'); select.innerHTML = '<option value="">—</option>'; for (let year = state.activeType.years[1]; year >= state.activeType.years[0]; year -= 1) select.innerHTML += `<option value="${year}">${year}</option>`; }
+function vehicleModelsForMake(info) { const models = new Set(); if (Array.isArray(info?.models)) info.models.forEach(model => models.add(model)); if (info?.families && typeof info.families === 'object') Object.values(info.families).forEach(list => Array.isArray(list) && list.forEach(model => models.add(model))); return Array.from(models).sort(); }
+async function ensureVehicleDetail(apiType) { if (state.vehicleDetails[apiType]) return state.vehicleDetails[apiType]; const response = await API.get(`/api/vehicles/${apiType}`); state.vehicleDetails[apiType] = response.makes || {}; return state.vehicleDetails[apiType]; }
+async function selectType(typeId) { state.activeType = typeById(typeId); renderTypeBar(); buildYears(); await ensureVehicleDetail(state.activeType.api); populateMakes(); populateModels(); }
+function populateMakes() { const select = document.getElementById('sel-make'); const makes = Object.keys(state.vehicleDetails[state.activeType.api] || {}).sort(); select.innerHTML = '<option value="">—</option>' + makes.map(make => `<option value="${make}">${make}</option>`).join(''); }
+function populateModels() { const select = document.getElementById('sel-model'); const make = document.getElementById('sel-make').value; const info = (state.vehicleDetails[state.activeType.api] || {})[make] || {}; const models = vehicleModelsForMake(info); select.innerHTML = '<option value="">—</option>' + models.map(model => `<option value="${model}">${model}</option>`).join(''); }
+function confirmVehicle() { const year = document.getElementById('sel-year').value; const make = document.getElementById('sel-make').value; const model = document.getElementById('sel-model').value; if (!year || !make || !model) return toast('Select year, make, and model.', 'error'); const label = `${year} ${make} ${model}`; state.selectedVehicle = { year, make, model, type: state.activeType.label }; document.getElementById('current-veh').style.display = ''; document.getElementById('current-veh').textContent = label; document.getElementById('tb-vehicle').textContent = label; toast(`Vehicle set: ${label}`, 'success'); }
+function renderLiveGrid() { const grid = document.getElementById('live-grid'); grid.innerHTML = LIVE_CELLS.map((cell, index) => `<div class="ld-cell"><div class="ld-name">${cell.label}</div><div class="ld-val" id="live-value-${index}">—</div><div class="ld-unit">${cell.unit}</div><div class="ld-bar"><div class="ld-bar-fill" id="live-bar-${index}" style="background:${cell.color};width:0"></div></div></div>`).join(''); }
+function updateLiveMetrics(metrics = {}) { LIVE_CELLS.forEach((cell, index) => { const value = cell.key.map(key => metrics[key]).find(value => value !== undefined); const valueEl = document.getElementById(`live-value-${index}`); const barEl = document.getElementById(`live-bar-${index}`); if (value === undefined || value === null || Number.isNaN(Number(value))) { valueEl.textContent = '—'; valueEl.style.color = 'var(--mx)'; barEl.style.width = '0'; return; } const numeric = Number(value); valueEl.textContent = numeric.toFixed(cell.unit === 'V' ? 1 : 0); valueEl.style.color = '#fff'; const percent = Math.max(0, Math.min(100, ((numeric - cell.min) / (cell.max - cell.min)) * 100)); barEl.style.width = `${percent}%`; }); }
+function renderModules(modules = {}) { const box = document.getElementById('sb-modules'); const entries = Object.entries(modules); box.innerHTML = '<div class="sb-lbl">Modules Found</div>'; if (!entries.length) return (box.innerHTML += '<div class="sbi" style="color:var(--mx);font-size:11px">No module list available.</div>'); entries.forEach(([address, name]) => { box.innerHTML += `<div class="sbi">${name}<span class="sbi-count">${address}</span></div>`; }); }
+function severityClass(value) { if (!value) return 'sev-medium'; const normalized = value.toLowerCase(); if (normalized.includes('high')) return 'sev-high'; if (normalized.includes('low')) return 'sev-low'; return 'sev-medium'; }
+function renderDtcs() { const query = document.getElementById('dtc-search').value.trim().toLowerCase(); const grid = document.getElementById('dtc-grid'); const filtered = state.scannedDtcs.filter(dtc => { const status = (dtc.status || 'active').toUpperCase(); if (state.dtcFilter !== 'ALL' && status !== state.dtcFilter) return false; const haystack = `${dtc.code} ${dtc.desc || ''} ${dtc.system || ''}`.toLowerCase(); return !query || haystack.includes(query); }); if (!filtered.length) { grid.innerHTML = '<div class="empty-panel" style="grid-column:1/-1">No DTCs match the current filters.</div>'; return; } grid.innerHTML = filtered.map((dtc, index) => `<button class="dtc-card ${severityClass(dtc.severity)}" data-index="${index}"><div class="dtc-code">${dtc.code}</div><div class="dtc-desc">${dtc.desc || dtc.description || 'Unknown DTC'}</div><div class="dtc-sys">${dtc.system || dtc.sys || 'Unknown System'}</div></button>`).join(''); grid.querySelectorAll('.dtc-card').forEach(card => card.addEventListener('click', () => showDtcDetail(filtered[Number(card.dataset.index)]))); }
+async function showDtcDetail(dtc) { const panel = document.getElementById('dtc-detail'); const symptomResponse = await API.get(`/api/procedures/symptom?q=${encodeURIComponent(dtc.desc || dtc.description || dtc.code)}`); const procedures = symptomResponse.procedures || []; panel.innerHTML = `<div class="dd-code">${dtc.code}</div><div class="dd-desc">${dtc.desc || dtc.description || 'Unknown DTC'}</div><div class="dd-section"><div class="dd-section-title">System</div><div class="dd-step-text">${dtc.system || dtc.sys || 'Unknown'}</div></div><div class="dd-section"><div class="dd-section-title">Severity</div><div class="dd-step-text">${dtc.severity || 'medium'}</div></div><div class="dd-section"><div class="dd-section-title">Matching Procedures</div>${procedures.length ? procedures.map(proc => `<div class="dd-step"><div class="dd-step-num">${proc.id}</div><div class="dd-step-text"><strong>${proc.title}</strong><br>${(proc.steps || []).slice(0,2).map(step => step.detail || step.title).join('<br>')}</div></div>`).join('') : '<div class="dd-step-text">No matching procedures found.</div>'}</div>`; }
+async function scanAll() { const result = await API.get('/api/scan'); if (!result.success) return toast(result.error || 'Scan failed.', 'error'); state.scannedDtcs = result.dtcs || []; renderModules(result.modules || {}); renderDtcs(); if (result.vin) document.getElementById('tb-vehicle').textContent = `VIN: ${result.vin}`; toast(`Scan complete — ${state.scannedDtcs.length} DTC(s) found.`, state.scannedDtcs.length ? 'error' : 'success'); }
+async function autoDetect() { const result = await API.post('/api/connect'); toast(result.success ? `Connected: ${result.vehicle_type || 'vehicle'} via ${result.protocol || result.frame_type}` : (result.error || 'No vehicle detected.'), result.success ? 'success' : 'error'); await refreshStatus(); }
+async function disconnectVehicle() { await API.post('/api/disconnect'); toast('Vehicle disconnected.', 'success'); await refreshStatus(); }
+async function clearDtcs() { const result = await API.post('/api/clear'); if (!result.success) return toast(result.error || 'Unable to clear DTCs.', 'error'); state.scannedDtcs = []; renderDtcs(); toast('All DTCs cleared.', 'success'); }
+function switchView(view) { document.querySelectorAll('.vw').forEach(node => node.classList.remove('on')); document.querySelectorAll('.nb').forEach(node => node.classList.remove('on')); document.getElementById(`vw-${view}`).classList.add('on'); document.querySelector(`.nb[data-view="${view}"]`).classList.add('on'); }
+function renderProcedures() { const host = document.getElementById('trouble-content'); host.innerHTML = state.procedures.map(proc => `<button class="ts-card" data-proc="${proc.id}"><div class="ts-symptom">${proc.title}</div><div class="ts-sub">${proc.difficulty || 'intermediate'} · ${(proc.symptoms || []).join(' · ')}</div></button>`).join('') || '<div class="empty-panel">No diagnostic procedures loaded.</div>'; host.querySelectorAll('.ts-card').forEach(card => card.addEventListener('click', () => showProcedure(card.dataset.proc))); }
+function showProcedure(id) { const proc = state.procedures.find(item => item.id === id); if (!proc) return; const host = document.getElementById('trouble-content'); host.innerHTML = `<div class="ts-result"><div class="ts-result-title">${proc.title}</div><div class="ts-result-text">Difficulty: ${proc.difficulty || 'intermediate'} · Time: ${proc.time_est || 'n/a'}</div>${(proc.safety_warnings || []).map(item => `<div class="warning warning-amber">⚠ ${item}</div>`).join('')}<div class="dd-section"><div class="dd-section-title">Steps</div>${(proc.steps || []).map((step, index) => `<div class="dd-step"><div class="dd-step-num">${index + 1}</div><div class="dd-step-text"><strong>${step.title}</strong><br>${step.detail}${step.tool ? `<br><span class="meta-line">Tool: ${step.tool}</span>` : ''}${step.expected ? `<br><span class="meta-line">Expected: ${step.expected}</span>` : ''}${step.if_fail ? `<br><span class="meta-line">If Fail: ${step.if_fail}</span>` : ''}</div></div>`).join('')}</div><button class="sec-action-outline" id="back-procedures">← BACK</button></div>`; document.getElementById('back-procedures').addEventListener('click', renderProcedures); }
+function renderInitProcedures() { const query = document.getElementById('init-search').value.trim().toLowerCase(); const grid = document.getElementById('init-grid'); const entries = Object.entries(state.initProcedures).filter(([, detail]) => { const haystack = `${detail.title || ''} ${detail.when || ''} ${(detail.steps || []).join(' ')}`.toLowerCase(); return !query || haystack.includes(query); }); grid.innerHTML = entries.map(([id, detail]) => `<button class="init-card" data-id="${id}"><div class="init-title">${detail.title || id}</div><div class="init-desc">${detail.when || 'Procedure available through the engine.'}</div><div class="init-makes">${(detail.vehicle_types || []).join(', ')}</div><div class="init-when">${(detail.steps || []).length} steps</div></button>`).join('') || '<div class="empty-panel" style="grid-column:1/-1">No module init procedures match the current search.</div>'; grid.querySelectorAll('.init-card').forEach(card => card.addEventListener('click', () => showInitProcedure(card.dataset.id))); }
+function showInitProcedure(id) { const detail = state.initProcedures[id]; if (!detail) return; const grid = document.getElementById('init-grid'); grid.innerHTML = `<div style="grid-column:1/-1"><div style="display:flex;align-items:center;gap:10px;margin-bottom:12px"><button class="sec-action-outline" id="back-init">← BACK</button><div class="init-title" style="font-size:16px">${detail.title || id}</div></div><div class="init-desc" style="font-size:11px;margin-bottom:8px">${detail.when || ''}</div><div class="init-makes" style="margin-bottom:16px">${(detail.vehicle_types || []).join(', ')}</div>${detail.safety ? `<div class="warning warning-red">⚠ ${detail.safety}</div>` : ''}<div class="dd-section"><div class="dd-section-title">Procedure Steps</div>${(detail.steps || []).map((step, index) => `<div class="dd-step"><div class="dd-step-num">${index + 1}</div><div class="dd-step-text">${step}</div></div>`).join('')}</div></div>`; document.getElementById('back-init').addEventListener('click', renderInitProcedures); }
+async function readFreezeFrame() { const result = await API.get('/api/freeze'); const host = document.getElementById('freeze-content'); if (!result.success || !result.data || !Object.keys(result.data).length) { host.innerHTML = '<div class="empty-panel">Freeze frame data unavailable.</div>'; return toast(result.error || 'Freeze frame unavailable.', 'error'); } host.innerHTML = `<table class="ff-table"><thead><tr><th>PID</th><th>Value</th></tr></thead><tbody>${Object.entries(result.data).map(([key, value]) => `<tr><td>${key}</td><td>${JSON.stringify(value)}</td></tr>`).join('')}</tbody></table>`; toast('Freeze frame loaded.', 'success'); }
+async function readReadiness() { const result = await API.get('/api/readiness'); const summary = document.getElementById('readiness-summary'); const grid = document.getElementById('rm-grid'); if (!result.success || !result.data) { summary.innerHTML = ''; grid.innerHTML = '<div class="empty-panel" style="grid-column:1/-1">Readiness data unavailable.</div>'; return toast(result.error || 'Readiness data unavailable.', 'error'); } const data = result.data; summary.innerHTML = `<div class="summary-pill">MIL: ${data.mil_on ? 'ON' : 'OFF'}</div><div class="summary-pill">DTC Count: ${data.dtc_count ?? 0}</div>`; const entries = Object.entries(data).filter(([key]) => !['mil_on', 'dtc_count'].includes(key)); grid.innerHTML = entries.map(([name, status]) => { const complete = status?.complete === true; const supported = status?.supported !== false; const dotClass = !supported ? 'rm-na' : (complete ? 'rm-ready' : 'rm-not-ready'); const label = !supported ? 'N/A' : (complete ? 'READY' : 'NOT READY'); return `<div class="rm-cell"><div class="rm-dot ${dotClass}"></div><div class="rm-name">${name.replace(/_/g,' ')}</div><div class="rm-status">${label}</div></div>`; }).join(''); toast('Readiness monitors loaded.', 'success'); }
+function protocolsForMake(info = {}) { const protocols = new Set(); if (info.protocols && typeof info.protocols === 'object') Object.values(info.protocols).forEach(list => Array.isArray(list) && list.forEach(item => protocols.add(String(item)))); return Array.from(protocols); }
+async function loadCoverage() { const cards = []; for (const type of TYPE_DEFS) { const detail = await ensureVehicleDetail(type.api); Object.entries(detail).forEach(([make, info]) => { cards.push({ type: type.label, make, years: info.years || 'See model coverage', protocols: protocolsForMake(info), models: vehicleModelsForMake(info) }); }); } state.coverageCards = cards; renderCoverage(); }
+function renderCoverage() { const query = document.getElementById('coverage-search').value.trim().toLowerCase(); const host = document.getElementById('cov-grid'); const cards = state.coverageCards.filter(card => { const haystack = `${card.type} ${card.make} ${card.years} ${card.protocols.join(' ')} ${card.models.join(' ')}`.toLowerCase(); return !query || haystack.includes(query); }); host.innerHTML = cards.map(card => `<div class="cov-card"><div class="cov-card-type">${card.type}</div><div class="cov-card-make">${card.make}</div><div class="cov-card-years">${card.years}</div><div class="cov-card-protos">${card.protocols.map(protocol => `<span class="proto-badge proto-can">${protocol}</span>`).join('')}</div><div class="cov-card-models">${card.models.slice(0, 12).join(', ')}${card.models.length > 12 ? '…' : ''}</div></div>`).join('') || '<div class="empty-panel" style="grid-column:1/-1">No coverage cards match the current search.</div>'; }
+function renderBridgeStatus(frame = state.latestFrame) { const row = document.getElementById('bridge-status-row'); row.innerHTML = frame ? `<div class="summary-pill">GPIO Port: ${frame.gpio_port || '—'}</div><div class="summary-pill">Baud: ${frame.baud_rate || '—'}</div><div class="summary-pill">Reconnect Count: ${frame.reconnect_count ?? 0}</div><div class="summary-pill">Frame Type: ${frame.frame_type || 'UNKNOWN'}</div>` : '<div class="summary-pill">Bridge status unavailable.</div>'; }
+function renderHardwareFeed() { renderBridgeStatus(); const body = document.getElementById('hardware-feed-body'); body.innerHTML = state.hardwareFrames.map(frame => `<tr><td>${frame.timestamp || '—'}</td><td><span class="proto-badge proto-serial">${frame.frame_type || 'UNKNOWN'}</span></td><td>${frame.hardware_state || 'NOT_CONNECTED'}</td><td class="mono-wrap">${frame.raw_frame || ''}</td></tr>`).join('') || '<tr><td colspan="4" class="empty-panel">Waiting for live hardware frames…</td></tr>'; }
+function handleFrame(frame) { state.latestFrame = frame; state.hardwareFrames.unshift(frame); state.hardwareFrames = state.hardwareFrames.slice(0, 100); renderHardwareFeed(); updateStatusPills(null, frame); if (state.liveRunning) updateLiveMetrics(frame.parsed_metrics || {}); }
+function connectWs() { const protocol = location.protocol === 'https:' ? 'wss' : 'ws'; const socket = new WebSocket(`${protocol}://${location.host}/ws/live`); state.ws = socket; socket.onopen = () => { state.wsDelay = 1000; setWsUi(true); }; socket.onmessage = event => { try { handleFrame(JSON.parse(event.data)); } catch (error) { console.error('WS parse error', error); } }; socket.onerror = () => setWsUi(false); socket.onclose = () => { setWsUi(false); setTimeout(connectWs, state.wsDelay); state.wsDelay = Math.min(state.wsDelay * 2, 30000); }; }
+async function refreshStatus() { const [status, bridge] = await Promise.all([API.get('/api/status'), API.get('/api/bridge/status')]); updateStatusPills(status, bridge); }
+function toggleLive() { state.liveRunning = !state.liveRunning; const button = document.getElementById('live-toggle'); if (state.liveRunning) { button.textContent = '⏹ STOP'; button.style.background = 'var(--rd)'; document.getElementById('live-status').textContent = 'Consuming /ws/live frame metrics'; if (state.latestFrame) updateLiveMetrics(state.latestFrame.parsed_metrics || {}); scanAll(); } else { button.textContent = '▶ START'; button.style.background = ''; document.getElementById('live-status').textContent = 'WS-linked live metrics'; } }
+function renderPidOverlay() { document.getElementById('pid-grid').innerHTML = PID_LIBRARY.map(item => `<div class="pid-card"><div class="dtc-code">${item.pid}</div><div class="dtc-desc">${item.name}</div><div class="dtc-sys">${item.unit}</div></div>`).join(''); }
+async function init() { renderTypeBar(); buildYears(); renderLiveGrid(); renderPidOverlay(); await ensureVehicleDetail(state.activeType.api); populateMakes(); populateModels(); const [procedures, initProcedures] = await Promise.all([API.get('/api/procedures'), API.get('/api/init-procedures')]); state.procedures = procedures.procedures || []; state.initProcedures = initProcedures.details || {}; renderProcedures(); renderInitProcedures(); renderDtcs(); await Promise.all([refreshStatus(), loadCoverage()]); connectWs(); setInterval(refreshStatus, 5000); }
+document.addEventListener('DOMContentLoaded', init); document.getElementById('sel-make').addEventListener('change', populateModels); document.getElementById('confirm-vehicle').addEventListener('click', confirmVehicle); document.getElementById('scan-all-btn').addEventListener('click', scanAll); document.getElementById('clear-all-btn').addEventListener('click', clearDtcs); document.getElementById('auto-detect-btn').addEventListener('click', autoDetect); document.getElementById('disconnect-btn').addEventListener('click', disconnectVehicle); document.getElementById('read-freeze').addEventListener('click', readFreezeFrame); document.getElementById('read-readiness').addEventListener('click', readReadiness); document.getElementById('live-toggle').addEventListener('click', toggleLive); document.getElementById('config-pids').addEventListener('click', () => document.getElementById('pid-overlay').hidden = false); document.getElementById('close-pid-overlay').addEventListener('click', () => document.getElementById('pid-overlay').hidden = true); document.getElementById('init-search').addEventListener('input', renderInitProcedures); document.getElementById('coverage-search').addEventListener('input', renderCoverage); document.getElementById('dtc-search').addEventListener('input', renderDtcs); document.querySelectorAll('.nb').forEach(button => button.addEventListener('click', () => switchView(button.dataset.view))); document.querySelectorAll('.filter-btn').forEach(button => button.addEventListener('click', () => { document.querySelectorAll('.filter-btn').forEach(node => node.classList.remove('on')); button.classList.add('on'); state.dtcFilter = button.dataset.filter; renderDtcs(); }));
+</script>
+</body>
+</html>

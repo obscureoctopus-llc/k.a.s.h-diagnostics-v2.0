@@ -11,11 +11,12 @@ import sys
 import time
 import threading
 from contextlib import asynccontextmanager, suppress
-from dataclasses import asdict, is_dataclass
+from dataclasses import asdict, dataclass, field, is_dataclass
 from datetime import datetime, timezone
+from enum import IntEnum, auto
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import serial
 import uvicorn
@@ -99,10 +100,6 @@ def configure_logging() -> logging.Logger:
 
 
 service_log = configure_logging()
-import struct
-from dataclasses import dataclass, field
-from enum import IntEnum, auto
-from typing import Callable, Tuple
 
 log = logging.getLogger("kash.diag")
 
@@ -1617,7 +1614,6 @@ GENERIC_DTCS = {
     "P0826": {"desc":"Up and Down Shift Switch Circuit","system":"Transmission","severity":"low"},
 
     # ── Diesel / Aftertreatment ──
-    "P0401": {"desc":"EGR Flow Insufficient Detected","system":"EGR","severity":"medium"},
     "P2002": {"desc":"Diesel Particulate Filter Efficiency Below Threshold (Bank 1)","system":"DPF","severity":"high"},
     "P2031": {"desc":"Exhaust Gas Temperature Sensor Circuit (Bank 1 Sensor 2)","system":"Exhaust","severity":"medium"},
     "P2032": {"desc":"Exhaust Gas Temperature Sensor Circuit Low (Bank 1 Sensor 2)","system":"Exhaust","severity":"medium"},
